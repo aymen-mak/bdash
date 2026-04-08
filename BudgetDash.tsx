@@ -110,6 +110,26 @@ export default function BudgetDash() {
     setData(prev)
   }
 
+  // Contextual undo hints — show inline near the action that just happened
+  const [lastAction, setLastAction] = useState<'add' | 'delete' | 'starting' | null>(null)
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function showUndoHint(action: 'add' | 'delete' | 'starting') {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    setLastAction(action)
+    undoTimerRef.current = setTimeout(() => setLastAction(null), 5000)
+  }
+
+  function handleUndo() {
+    undo()
+    setLastAction(null)
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+  }
+
+  useEffect(() => {
+    return () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current) }
+  }, [])
+
   useEffect(() => {
     try {
       const stored = localStorage.getItem('budget-dash')
@@ -204,7 +224,7 @@ export default function BudgetDash() {
 
   function commitStarting() {
     const val = Math.max(0, Number(startingInput) || 0)
-    if (val !== monthData.startingAmount) pushUndo()
+    if (val !== monthData.startingAmount) { pushUndo(); showUndoHint('starting') }
     setMonthData({ startingAmount: val })
     setStartingInput(String(val))
     setEditingStarting(false)
@@ -213,6 +233,7 @@ export default function BudgetDash() {
   function addTransaction() {
     if (!form.amount || isNaN(Number(form.amount))) return
     pushUndo()
+    showUndoHint('add')
     const tx: Transaction = {
       id: crypto.randomUUID(),
       date: form.date,
@@ -229,6 +250,7 @@ export default function BudgetDash() {
 
   function deleteTransaction(id: string) {
     pushUndo()
+    showUndoHint('delete')
     setMonthData({ transactions: monthData.transactions.filter((t) => t.id !== id) })
   }
 
@@ -358,14 +380,6 @@ export default function BudgetDash() {
             <ChevronRight size={20} />
           </button>
           <button
-            onClick={undo}
-            disabled={undoCount === 0}
-            className="ml-4 flex items-center gap-1 px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            title="Undo last action"
-          >
-            <Undo2 size={14} /> Undo
-          </button>
-          <button
             onClick={exportExcel}
             className="flex items-center gap-1 px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-colors"
           >
@@ -405,12 +419,22 @@ export default function BudgetDash() {
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => setEditingStarting(true)}
-              className="text-2xl font-bold text-white hover:text-indigo-300 transition-colors"
-            >
-              {monthData.startingAmount > 0 ? formatCurrency(monthData.startingAmount) : 'Set amount →'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setEditingStarting(true)}
+                className="text-2xl font-bold text-white hover:text-indigo-300 transition-colors"
+              >
+                {monthData.startingAmount > 0 ? formatCurrency(monthData.startingAmount) : 'Set amount →'}
+              </button>
+              {lastAction === 'starting' && (
+                <button
+                  onClick={handleUndo}
+                  className="flex items-center gap-1 px-2 py-1 text-xs text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded-md hover:bg-indigo-500/20 transition-all"
+                >
+                  <Undo2 size={11} /> Undo
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -559,6 +583,14 @@ export default function BudgetDash() {
           >
             <Plus size={16} /> Add
           </button>
+          {lastAction === 'add' && (
+            <button
+              onClick={handleUndo}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-all"
+            >
+              <Undo2 size={11} /> Undo
+            </button>
+          )}
         </div>
       </div>
 
@@ -754,7 +786,17 @@ export default function BudgetDash() {
       {/* Transactions */}
       <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-slate-200">Transactions</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold text-slate-200">Transactions</h2>
+            {lastAction === 'delete' && (
+              <button
+                onClick={handleUndo}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded-md hover:bg-red-500/20 transition-all"
+              >
+                <Undo2 size={11} /> Undo delete
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Filters */}
