@@ -483,8 +483,11 @@ export default function BudgetDash() {
         </div>
       </div>
 
-      {/* Add Transaction — always visible, prominent */}
-      <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-5 space-y-5">
+      {/* Add Transaction + Transactions side by side */}
+      <div className="grid md:grid-cols-12 gap-4 items-start">
+
+      {/* Add Transaction */}
+      <div className="md:col-span-7 bg-slate-900/80 rounded-xl border border-slate-800 p-5 space-y-5">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-white text-lg flex items-center gap-2">
             {editingTxId ? <><Pencil size={18} className="text-amber-400" /> Edit Transaction</> : <><Plus size={18} className="text-indigo-400" /> Add Transaction</>}
@@ -658,6 +661,129 @@ export default function BudgetDash() {
           )}
         </div>
       </div>
+
+      {/* Transactions */}
+      <div className="md:col-span-5 bg-slate-900/80 rounded-xl border border-slate-800 p-4 flex flex-col">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold text-slate-200">Transactions</h2>
+            {lastAction === 'delete' && (
+              <button
+                onClick={handleUndo}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded-md hover:bg-red-500/20 transition-all"
+              >
+                <Undo2 size={11} /> Undo delete
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          <div className="relative flex-1 min-w-0">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Search..."
+              className="w-full pl-8 pr-3 py-1.5 text-sm bg-slate-800 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <select
+            className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-slate-200"
+            value={filterWho}
+            onChange={(e) => setFilterWho(e.target.value as Who | 'All')}
+          >
+            <option value="All">Who</option>
+            <option>Me</option>
+            <option>Partner</option>
+            <option>Shared</option>
+          </select>
+          <select
+            className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-slate-200"
+            value={filterCat}
+            onChange={(e) => setFilterCat(e.target.value)}
+          >
+            <option value="All">Category</option>
+            {ALL_CATS.map((c) => (
+              <option key={c.name} value={c.name}>{c.emoji} {c.name}</option>
+            ))}
+          </select>
+          <select
+            className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-slate-200"
+            value={filterTag}
+            onChange={(e) => setFilterTag(e.target.value as ExpenseTag | 'All')}
+          >
+            <option value="All">Tag</option>
+            <option value="Work">Work</option>
+            <option value="Non-work">Non-work</option>
+          </select>
+        </div>
+
+        {/* Transaction list */}
+        {filtered.length === 0 ? (
+          <p className="text-slate-500 text-sm text-center py-6">No transactions found</p>
+        ) : (
+          <div className="space-y-1 flex-1 overflow-y-auto max-h-[28rem]">
+            {[...filtered].sort((a, b) => b.date.localeCompare(a.date)).map((t) => {
+              const meta = catMeta(t.category)
+              const tag = t.tag ?? (t.type === 'expense' ? 'Non-work' : null)
+              return (
+                <div
+                  key={t.id}
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors group ${
+                    editingTxId === t.id
+                      ? 'bg-amber-500/10 border border-amber-500/30'
+                      : 'hover:bg-slate-800/60'
+                  }`}
+                >
+                  <span className="text-base w-6 flex-shrink-0">{meta.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-medium text-slate-200 truncate">{t.category}</span>
+                      <span className="text-xs text-slate-500">{t.who}</span>
+                      {tag && (
+                        <span className={`text-[10px] px-1 py-0.5 rounded-full ${
+                          tag === 'Work'
+                            ? 'bg-indigo-900/50 text-indigo-300 border border-indigo-700/50'
+                            : 'bg-amber-900/30 text-amber-300 border border-amber-700/50'
+                        }`}>
+                          {tag}
+                        </span>
+                      )}
+                    </div>
+                    {t.note && <p className="text-xs text-slate-500 truncate">{t.note}</p>}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div
+                      className="text-sm font-semibold"
+                      style={{ color: t.type === 'expense' ? '#f87171' : '#34d399' }}
+                    >
+                      {t.type === 'expense' ? '-' : '+'}{formatCurrency(t.amount)}
+                    </div>
+                    <div className="text-[10px] text-slate-500">{t.date}</div>
+                  </div>
+                  <button
+                    onClick={() => startEdit(t)}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-indigo-400 transition-all"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    onClick={() => deleteTransaction(t.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 transition-all"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      </div>{/* end grid */}
 
       {/* Summary Overview */}
       <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-5 space-y-4">
@@ -848,126 +974,6 @@ export default function BudgetDash() {
         )}
       </div>
 
-      {/* Transactions */}
-      <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <h2 className="font-semibold text-slate-200">Transactions</h2>
-            {lastAction === 'delete' && (
-              <button
-                onClick={handleUndo}
-                className="flex items-center gap-1 px-2 py-1 text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded-md hover:bg-red-500/20 transition-all"
-              >
-                <Undo2 size={11} /> Undo delete
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap gap-2 mb-3">
-          <div className="relative flex-1 min-w-36">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="w-full pl-8 pr-3 py-1.5 text-sm bg-slate-800 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <select
-            className="text-sm bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200"
-            value={filterWho}
-            onChange={(e) => setFilterWho(e.target.value as Who | 'All')}
-          >
-            <option value="All">All people</option>
-            <option>Me</option>
-            <option>Partner</option>
-            <option>Shared</option>
-          </select>
-          <select
-            className="text-sm bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200"
-            value={filterCat}
-            onChange={(e) => setFilterCat(e.target.value)}
-          >
-            <option value="All">All categories</option>
-            {ALL_CATS.map((c) => (
-              <option key={c.name} value={c.name}>{c.emoji} {c.name}</option>
-            ))}
-          </select>
-          <select
-            className="text-sm bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200"
-            value={filterTag}
-            onChange={(e) => setFilterTag(e.target.value as ExpenseTag | 'All')}
-          >
-            <option value="All">All tags</option>
-            <option value="Work">Work</option>
-            <option value="Non-work">Non-work</option>
-          </select>
-        </div>
-
-        {/* Transaction list */}
-        {filtered.length === 0 ? (
-          <p className="text-slate-500 text-sm text-center py-6">No transactions found</p>
-        ) : (
-          <div className="space-y-1 max-h-96 overflow-y-auto">
-            {[...filtered].sort((a, b) => b.date.localeCompare(a.date)).map((t) => {
-              const meta = catMeta(t.category)
-              const tag = t.tag ?? (t.type === 'expense' ? 'Non-work' : null)
-              return (
-                <div
-                  key={t.id}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors group ${
-                    editingTxId === t.id
-                      ? 'bg-amber-500/10 border border-amber-500/30'
-                      : 'hover:bg-slate-800/60'
-                  }`}
-                >
-                  <span className="text-lg w-7 flex-shrink-0">{meta.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-200">{t.category}</span>
-                      <span className="text-xs text-slate-500">{t.who}</span>
-                      {tag && (
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                          tag === 'Work'
-                            ? 'bg-indigo-900/50 text-indigo-300 border border-indigo-700/50'
-                            : 'bg-amber-900/30 text-amber-300 border border-amber-700/50'
-                        }`}>
-                          {tag}
-                        </span>
-                      )}
-                    </div>
-                    {t.note && <p className="text-xs text-slate-500 truncate">{t.note}</p>}
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <div
-                      className="text-sm font-semibold"
-                      style={{ color: t.type === 'expense' ? '#f87171' : '#34d399' }}
-                    >
-                      {t.type === 'expense' ? '-' : '+'}{formatCurrency(t.amount)}
-                    </div>
-                    <div className="text-xs text-slate-500">{t.date}</div>
-                  </div>
-                  <button
-                    onClick={() => startEdit(t)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-indigo-400 transition-all"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    onClick={() => deleteTransaction(t.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 transition-all"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
     </div>
   )
 }
