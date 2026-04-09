@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
-import { Plus, Trash2, Download, Search, ChevronLeft, ChevronRight, DollarSign, Briefcase, Coffee, Undo2, FileSpreadsheet, Pencil, X } from 'lucide-react'
+import { Plus, Trash2, Download, Search, ChevronLeft, ChevronRight, DollarSign, Briefcase, Coffee, Undo2, FileSpreadsheet, Pencil, X, CalendarDays } from 'lucide-react'
 import ExcelJS from 'exceljs'
 
 type Who = 'Me' | 'Partner' | 'Shared'
@@ -94,6 +94,11 @@ export default function BudgetDash() {
   })
 
   const [editingTxId, setEditingTxId] = useState<string | null>(null)
+
+  // Calendar
+  const [calOpen, setCalOpen] = useState(false)
+  const [calView, setCalView] = useState<'month' | 'week' | 'day'>('month')
+  const [calDate, setCalDate] = useState(today) // the focal date for week/day views
 
   // Undo stack
   const MAX_UNDO = 50
@@ -408,6 +413,82 @@ export default function BudgetDash() {
     { name: 'Non-work', value: nonWorkExpenses, color: '#f59e0b' },
   ].filter((d) => d.value > 0)
 
+  // Calendar helpers
+  const txByDate = useMemo(() => {
+    const map: Record<string, Transaction[]> = {}
+    monthData.transactions.forEach((t) => {
+      ;(map[t.date] ??= []).push(t)
+    })
+    return map
+  }, [monthData.transactions])
+
+  // Build calendar month grid (6 weeks max)
+  const calMonthGrid = useMemo(() => {
+    const first = new Date(year, month, 1)
+    const startDay = first.getDay() // 0=Sun
+    const days = daysInMonth(year, month)
+    const cells: { date: Date; inMonth: boolean }[] = []
+    // previous month padding
+    for (let i = startDay - 1; i >= 0; i--) {
+      const d = new Date(year, month, -i)
+      cells.push({ date: d, inMonth: false })
+    }
+    // current month
+    for (let d = 1; d <= days; d++) {
+      cells.push({ date: new Date(year, month, d), inMonth: true })
+    }
+    // next month padding to fill last row
+    while (cells.length % 7 !== 0) {
+      const d = cells.length - startDay - days + 1
+      cells.push({ date: new Date(year, month + 1, d), inMonth: false })
+    }
+    return cells
+  }, [year, month])
+
+  // Week view: get the week containing calDate
+  const calWeekDays = useMemo(() => {
+    const d = new Date(calDate)
+    const day = d.getDay()
+    const sun = new Date(d)
+    sun.setDate(d.getDate() - day)
+    return Array.from({ length: 7 }, (_, i) => {
+      const dt = new Date(sun)
+      dt.setDate(sun.getDate() + i)
+      return dt
+    })
+  }, [calDate])
+
+  function fmtDateKey(d: Date) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+
+  function dayTotal(dateKey: string, type: TxType) {
+    return (txByDate[dateKey] ?? []).filter((t) => t.type === type).reduce((s, t) => s + t.amount, 0)
+  }
+
+  function calPrevPeriod() {
+    if (calView === 'month') prevMonth()
+    else if (calView === 'week') setCalDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })
+    else setCalDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n })
+  }
+
+  function calNextPeriod() {
+    if (calView === 'month') nextMonth()
+    else if (calView === 'week') setCalDate((d) => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })
+    else setCalDate((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return n })
+  }
+
+  // Sync calDate when month changes
+  useEffect(() => {
+    setCalDate(new Date(year, month, 1))
+  }, [year, month])
+
+  const calPeriodLabel = calView === 'month'
+    ? `${MONTH_NAMES[month]} ${year}`
+    : calView === 'week'
+      ? `${calWeekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${calWeekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+      : calDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
       {/* Header */}
@@ -417,9 +498,13 @@ export default function BudgetDash() {
           <button onClick={prevMonth} className="p-1 rounded hover:bg-slate-700 transition-colors text-slate-300">
             <ChevronLeft size={20} />
           </button>
-          <span className="font-semibold text-slate-200 w-40 text-center">
+          <button
+            onClick={() => setCalOpen((v) => !v)}
+            className={`font-semibold w-40 text-center flex items-center justify-center gap-1.5 py-1 rounded-lg transition-colors ${calOpen ? 'text-indigo-300 bg-indigo-500/10' : 'text-slate-200 hover:text-indigo-300'}`}
+          >
+            <CalendarDays size={14} />
             {MONTH_NAMES[month]} {year}
-          </span>
+          </button>
           <button onClick={nextMonth} className="p-1 rounded hover:bg-slate-700 transition-colors text-slate-300">
             <ChevronRight size={20} />
           </button>
@@ -431,6 +516,182 @@ export default function BudgetDash() {
           </button>
         </div>
       </div>
+
+      {/* Calendar Panel */}
+      {calOpen && (
+        <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3">
+          {/* Calendar header: view tabs + period nav */}
+          <div className="flex items-center justify-between">
+            <div className="flex gap-1">
+              {(['month', 'week', 'day'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setCalView(v)}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    calView === v
+                      ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={calPrevPeriod} className="p-1 rounded hover:bg-slate-700 text-slate-400 transition-colors">
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-sm font-medium text-slate-200 min-w-48 text-center">{calPeriodLabel}</span>
+              <button onClick={calNextPeriod} className="p-1 rounded hover:bg-slate-700 text-slate-400 transition-colors">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <button
+              onClick={() => { setCalDate(today); if (calView === 'month') { setYear(today.getFullYear()); setMonth(today.getMonth()) } }}
+              className="px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200 bg-slate-800/60 rounded-md border border-slate-700/50 transition-colors"
+            >
+              Today
+            </button>
+          </div>
+
+          {/* Month view */}
+          {calView === 'month' && (
+            <div>
+              <div className="grid grid-cols-7 gap-px mb-1">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                  <div key={d} className="text-center text-[10px] font-medium text-slate-500 py-1">{d}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-px">
+                {calMonthGrid.map((cell, i) => {
+                  const dk = fmtDateKey(cell.date)
+                  const txs = txByDate[dk] ?? []
+                  const exp = dayTotal(dk, 'expense')
+                  const inc = dayTotal(dk, 'income')
+                  const isToday = dk === fmtDateKey(today)
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => { setCalDate(cell.date); setCalView('day') }}
+                      className={`relative p-1.5 rounded-lg text-left min-h-[3.5rem] transition-colors ${
+                        cell.inMonth ? 'hover:bg-slate-800/60' : 'opacity-30'
+                      } ${isToday ? 'ring-1 ring-indigo-500/50' : ''}`}
+                    >
+                      <div className={`text-xs font-medium ${isToday ? 'text-indigo-400' : cell.inMonth ? 'text-slate-300' : 'text-slate-600'}`}>
+                        {cell.date.getDate()}
+                      </div>
+                      {txs.length > 0 && cell.inMonth && (
+                        <div className="mt-0.5 space-y-0.5">
+                          {exp > 0 && <div className="text-[9px] text-red-400 truncate">-{formatCurrency(exp)}</div>}
+                          {inc > 0 && <div className="text-[9px] text-emerald-400 truncate">+{formatCurrency(inc)}</div>}
+                        </div>
+                      )}
+                      {txs.length > 0 && cell.inMonth && (
+                        <div className="absolute top-1 right-1.5 flex gap-0.5">
+                          {txs.slice(0, 3).map((tx) => (
+                            <span key={tx.id} className="w-1 h-1 rounded-full" style={{ backgroundColor: catMeta(tx.category).color }} />
+                          ))}
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Week view */}
+          {calView === 'week' && (
+            <div>
+              <div className="grid grid-cols-7 gap-2">
+                {calWeekDays.map((d) => {
+                  const dk = fmtDateKey(d)
+                  const txs = txByDate[dk] ?? []
+                  const exp = dayTotal(dk, 'expense')
+                  const inc = dayTotal(dk, 'income')
+                  const isToday = dk === fmtDateKey(today)
+                  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+                  return (
+                    <button
+                      key={dk}
+                      onClick={() => { setCalDate(d); setCalView('day') }}
+                      className={`rounded-lg p-2 text-left transition-colors hover:bg-slate-800/60 ${isToday ? 'ring-1 ring-indigo-500/50' : ''}`}
+                    >
+                      <div className="text-[10px] text-slate-500 font-medium">{dayNames[d.getDay()]}</div>
+                      <div className={`text-sm font-semibold ${isToday ? 'text-indigo-400' : 'text-slate-200'}`}>{d.getDate()}</div>
+                      <div className="mt-1 space-y-0.5 min-h-[3rem]">
+                        {exp > 0 && <div className="text-[10px] text-red-400">-{formatCurrency(exp)}</div>}
+                        {inc > 0 && <div className="text-[10px] text-emerald-400">+{formatCurrency(inc)}</div>}
+                        {txs.map((tx) => (
+                          <div key={tx.id} className="flex items-center gap-1 text-[10px] text-slate-400 truncate">
+                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: catMeta(tx.category).color }} />
+                            {catMeta(tx.category).emoji} {formatCurrency(tx.amount)}
+                          </div>
+                        ))}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Day view */}
+          {calView === 'day' && (() => {
+            const dk = fmtDateKey(calDate)
+            const txs = txByDate[dk] ?? []
+            const exp = dayTotal(dk, 'expense')
+            const inc = dayTotal(dk, 'income')
+            return (
+              <div>
+                <div className="flex items-center gap-4 mb-3">
+                  {exp > 0 && <span className="text-sm text-red-400 font-medium">Expenses: {formatCurrency(exp)}</span>}
+                  {inc > 0 && <span className="text-sm text-emerald-400 font-medium">Income: {formatCurrency(inc)}</span>}
+                  {txs.length === 0 && <span className="text-sm text-slate-500">No transactions</span>}
+                </div>
+                {txs.length > 0 && (
+                  <div className="space-y-1">
+                    {txs.map((tx) => {
+                      const meta = catMeta(tx.category)
+                      return (
+                        <div key={tx.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-800/40 hover:bg-slate-800/60 transition-colors">
+                          <span className="text-lg">{meta.emoji}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-slate-200">{tx.category}</span>
+                              <span className="text-xs text-slate-500">{tx.who}</span>
+                              {tx.tag && (
+                                <span className={`text-[10px] px-1 py-0.5 rounded-full ${
+                                  tx.tag === 'Work'
+                                    ? 'bg-indigo-900/50 text-indigo-300 border border-indigo-700/50'
+                                    : 'bg-amber-900/30 text-amber-300 border border-amber-700/50'
+                                }`}>{tx.tag}</span>
+                              )}
+                            </div>
+                            {tx.note && <p className="text-xs text-slate-500 truncate">{tx.note}</p>}
+                          </div>
+                          <div
+                            className="text-sm font-semibold"
+                            style={{ color: tx.type === 'expense' ? '#f87171' : '#34d399' }}
+                          >
+                            {tx.type === 'expense' ? '-' : '+'}{formatCurrency(tx.amount)}
+                          </div>
+                          <button
+                            onClick={() => { startEdit(tx); setCalOpen(false) }}
+                            className="p-1 text-slate-500 hover:text-indigo-400 transition-all"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+        </div>
+      )}
 
       {/* Starting Amount Input */}
       <div className="bg-gradient-to-r from-indigo-900/60 to-blue-900/60 rounded-xl border border-indigo-800/50 p-4">
