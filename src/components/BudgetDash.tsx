@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
-import { Plus, Trash2, Download, Search, ChevronLeft, ChevronRight, DollarSign, Briefcase, Coffee, Undo2, FileSpreadsheet } from 'lucide-react'
+import { Plus, Trash2, Download, Search, ChevronLeft, ChevronRight, DollarSign, Briefcase, Coffee, Undo2, FileSpreadsheet, Pencil, X } from 'lucide-react'
 import ExcelJS from 'exceljs'
 
 type Who = 'Me' | 'Partner' | 'Shared'
@@ -92,6 +92,8 @@ export default function BudgetDash() {
     tag: 'Non-work' as ExpenseTag,
     date: today.toISOString().slice(0, 10),
   })
+
+  const [editingTxId, setEditingTxId] = useState<string | null>(null)
 
   // Undo stack
   const MAX_UNDO = 50
@@ -252,6 +254,48 @@ export default function BudgetDash() {
     pushUndo()
     showUndoHint('delete')
     setMonthData({ transactions: monthData.transactions.filter((t) => t.id !== id) })
+    if (editingTxId === id) setEditingTxId(null)
+  }
+
+  function startEdit(tx: Transaction) {
+    setEditingTxId(tx.id)
+    setForm({
+      type: tx.type,
+      category: tx.category,
+      amount: String(tx.amount),
+      note: tx.note,
+      who: tx.who,
+      tag: tx.tag ?? 'Non-work',
+      date: tx.date,
+    })
+  }
+
+  function cancelEdit() {
+    setEditingTxId(null)
+    setForm((f) => ({ ...f, amount: '', note: '' }))
+  }
+
+  function saveEdit() {
+    if (!editingTxId || !form.amount || isNaN(Number(form.amount))) return
+    pushUndo()
+    setMonthData({
+      transactions: monthData.transactions.map((t) =>
+        t.id === editingTxId
+          ? {
+              ...t,
+              type: form.type,
+              category: form.category,
+              amount: Math.abs(Number(form.amount)),
+              note: form.note,
+              who: form.who,
+              tag: form.type === 'expense' ? form.tag : undefined,
+              date: form.date,
+            }
+          : t
+      ),
+    })
+    setEditingTxId(null)
+    setForm((f) => ({ ...f, amount: '', note: '' }))
   }
 
   async function exportExcel() {
@@ -441,9 +485,19 @@ export default function BudgetDash() {
 
       {/* Add Transaction — always visible, prominent */}
       <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-5 space-y-5">
-        <h2 className="font-semibold text-white text-lg flex items-center gap-2">
-          <Plus size={18} className="text-indigo-400" /> Add Transaction
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-white text-lg flex items-center gap-2">
+            {editingTxId ? <><Pencil size={18} className="text-amber-400" /> Edit Transaction</> : <><Plus size={18} className="text-indigo-400" /> Add Transaction</>}
+          </h2>
+          {editingTxId && (
+            <button
+              onClick={cancelEdit}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200 bg-slate-800/60 rounded-lg border border-slate-700/50 transition-colors"
+            >
+              <X size={12} /> Cancel
+            </button>
+          )}
+        </div>
 
         {/* Type toggle */}
         <div className="flex gap-2">
@@ -575,21 +629,32 @@ export default function BudgetDash() {
             className="flex-1 px-4 py-3 text-sm bg-slate-800/80 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-            onKeyDown={(e) => e.key === 'Enter' && addTransaction()}
+            onKeyDown={(e) => e.key === 'Enter' && (editingTxId ? saveEdit() : addTransaction())}
           />
-          <button
-            onClick={addTransaction}
-            className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-500 transition-colors flex items-center gap-2 text-sm whitespace-nowrap"
-          >
-            <Plus size={16} /> Add
-          </button>
-          {lastAction === 'add' && (
+          {editingTxId ? (
             <button
-              onClick={handleUndo}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-all"
+              onClick={saveEdit}
+              className="px-6 py-3 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-500 transition-colors flex items-center gap-2 text-sm whitespace-nowrap"
             >
-              <Undo2 size={11} /> Undo
+              <Pencil size={16} /> Save
             </button>
+          ) : (
+            <>
+              <button
+                onClick={addTransaction}
+                className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-500 transition-colors flex items-center gap-2 text-sm whitespace-nowrap"
+              >
+                <Plus size={16} /> Add
+              </button>
+              {lastAction === 'add' && (
+                <button
+                  onClick={handleUndo}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-all"
+                >
+                  <Undo2 size={11} /> Undo
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -853,7 +918,11 @@ export default function BudgetDash() {
               return (
                 <div
                   key={t.id}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-800/60 transition-colors group"
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors group ${
+                    editingTxId === t.id
+                      ? 'bg-amber-500/10 border border-amber-500/30'
+                      : 'hover:bg-slate-800/60'
+                  }`}
                 >
                   <span className="text-lg w-7 flex-shrink-0">{meta.emoji}</span>
                   <div className="flex-1 min-w-0">
@@ -881,6 +950,12 @@ export default function BudgetDash() {
                     </div>
                     <div className="text-xs text-slate-500">{t.date}</div>
                   </div>
+                  <button
+                    onClick={() => startEdit(t)}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-indigo-400 transition-all"
+                  >
+                    <Pencil size={14} />
+                  </button>
                   <button
                     onClick={() => deleteTransaction(t.id)}
                     className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 transition-all"
