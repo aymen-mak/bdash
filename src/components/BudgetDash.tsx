@@ -4,9 +4,10 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
-import { Plus, Trash2, Download, Search, ChevronLeft, ChevronRight, DollarSign, Briefcase, Coffee, Undo2, FileSpreadsheet, Pencil, X, CalendarDays } from 'lucide-react'
+import { Plus, Trash2, Download, Search, ChevronLeft, ChevronRight, DollarSign, Briefcase, Coffee, Undo2, FileSpreadsheet, Pencil, X, CalendarDays, Moon, Sun } from 'lucide-react'
 import ExcelJS from 'exceljs'
 
+type Theme = 'midnight' | 'abyss' | 'daylight'
 type Who = 'Me' | 'Partner' | 'Shared'
 type TxType = 'expense' | 'income'
 type ExpenseTag = 'Reimbursable' | 'Personal'
@@ -83,6 +84,7 @@ export default function BudgetDash() {
   const [month, setMonth] = useState(today.getMonth())
   const [data, setData]   = useState<Record<string, MonthData>>({})
   const [loaded, setLoaded] = useState(false)
+  const [theme, setTheme]   = useState<Theme>('midnight')
   const [search, setSearch]     = useState('')
   const [filterWho, setFilterWho] = useState<Who | 'All'>('All')
   const [filterCat, setFilterCat] = useState('All')
@@ -167,6 +169,8 @@ export default function BudgetDash() {
       }
       const storedNames = localStorage.getItem('budget-dash-who-names')
       if (storedNames) setWhoNames(JSON.parse(storedNames))
+      const storedTheme = localStorage.getItem('budget-dash-theme')
+      if (storedTheme) setTheme(JSON.parse(storedTheme))
     } catch {}
     setLoaded(true)
   }, [])
@@ -175,6 +179,16 @@ export default function BudgetDash() {
     if (!loaded) return
     localStorage.setItem('budget-dash', JSON.stringify(data))
   }, [data, loaded])
+
+  // Apply theme to documentElement and persist
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
+
+  useEffect(() => {
+    if (!loaded) return
+    localStorage.setItem('budget-dash-theme', JSON.stringify(theme))
+  }, [theme, loaded])
 
   const key = monthKey(year, month)
   const monthData: MonthData = data[key] ?? { startingAmount: 0, transactions: [] }
@@ -552,37 +566,68 @@ export default function BudgetDash() {
       ? `${calWeekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${calWeekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
       : calDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 
+  // Chart colors derived from theme
+  const chartColors = useMemo(() => ({
+    axis: theme === 'daylight' ? '#94a3b8' : theme === 'abyss' ? '#525252' : '#64748b',
+    tooltipBg: theme === 'daylight' ? '#ffffff' : theme === 'abyss' ? '#0a0a0a' : '#1e293b',
+    tooltipBorder: theme === 'daylight' ? '#e2e8f0' : theme === 'abyss' ? '#2a2a2a' : '#334155',
+    tooltipText: theme === 'daylight' ? '#1e293b' : '#e2e8f0',
+  }), [theme])
+
+  const tooltipStyle = { backgroundColor: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, borderRadius: '8px', color: chartColors.tooltipText }
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Budget Dash</h1>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Budget Dash</h1>
         <div className="flex items-center gap-2">
-          <button onClick={prevMonth} className="p-1 rounded hover:bg-slate-700 transition-colors text-slate-300">
+          <button onClick={prevMonth} className="p-1 rounded hover:bg-[var(--bg-hover)] transition-colors text-[var(--text-tertiary)]">
             <ChevronLeft size={20} />
           </button>
           <button
             onClick={() => setCalOpen((v) => !v)}
-            className={`font-semibold w-40 text-center flex items-center justify-center gap-1.5 py-1 rounded-lg transition-colors ${calOpen ? 'text-indigo-300 bg-indigo-500/10' : 'text-slate-200 hover:text-indigo-300'}`}
+            className={`font-semibold w-40 text-center flex items-center justify-center gap-1.5 py-1 rounded-lg transition-colors ${calOpen ? 'text-[var(--c-accent)] bg-[var(--c-accent-bg-subtle)]' : 'text-[var(--text-secondary)] hover:text-[var(--c-accent)]'}`}
           >
             <CalendarDays size={14} />
             {MONTH_NAMES[month]} {year}
           </button>
-          <button onClick={nextMonth} className="p-1 rounded hover:bg-slate-700 transition-colors text-slate-300">
+          <button onClick={nextMonth} className="p-1 rounded hover:bg-[var(--bg-hover)] transition-colors text-[var(--text-tertiary)]">
             <ChevronRight size={20} />
           </button>
           <button
             onClick={exportExcel}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-colors"
+            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-[var(--bg-input)] hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] rounded-lg border border-[var(--border-input)] transition-colors"
           >
             <FileSpreadsheet size={14} /> Export
           </button>
+          {/* Theme toggle */}
+          <div className="inline-flex rounded-lg bg-[var(--bg-input)] border border-[var(--border-subtle)] p-0.5">
+            {([
+              { key: 'midnight' as Theme, icon: <Moon size={13} />, label: 'Midnight' },
+              { key: 'abyss' as Theme, icon: <Moon size={13} className="fill-current" />, label: 'Abyss' },
+              { key: 'daylight' as Theme, icon: <Sun size={13} />, label: 'Daylight' },
+            ]).map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTheme(t.key)}
+                title={t.label}
+                className={`p-1.5 rounded-md transition-all ${
+                  theme === t.key
+                    ? 'bg-[var(--c-accent-bg)] text-[var(--c-accent)] shadow-sm'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                }`}
+              >
+                {t.icon}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Calendar Panel */}
       {calOpen && (
-        <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-main)] p-4 space-y-3">
           {/* Calendar header: view tabs + period nav */}
           <div className="flex items-center justify-between">
             <div className="flex gap-1">
@@ -592,8 +637,8 @@ export default function BudgetDash() {
                   onClick={() => setCalView(v)}
                   className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
                     calView === v
-                      ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      ? 'bg-[var(--c-accent-bg)] text-[var(--c-accent)] border border-[var(--c-accent-border)]'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-input)]'
                   }`}
                 >
                   {v.charAt(0).toUpperCase() + v.slice(1)}
@@ -601,17 +646,17 @@ export default function BudgetDash() {
               ))}
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={calPrevPeriod} className="p-1 rounded hover:bg-slate-700 text-slate-400 transition-colors">
+              <button onClick={calPrevPeriod} className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-muted)] transition-colors">
                 <ChevronLeft size={16} />
               </button>
-              <span className="text-sm font-medium text-slate-200 min-w-48 text-center">{calPeriodLabel}</span>
-              <button onClick={calNextPeriod} className="p-1 rounded hover:bg-slate-700 text-slate-400 transition-colors">
+              <span className="text-sm font-medium text-[var(--text-secondary)] min-w-48 text-center">{calPeriodLabel}</span>
+              <button onClick={calNextPeriod} className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-muted)] transition-colors">
                 <ChevronRight size={16} />
               </button>
             </div>
             <button
               onClick={() => { setCalDate(today); if (calView === 'month') { setYear(today.getFullYear()); setMonth(today.getMonth()) } }}
-              className="px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200 bg-slate-800/60 rounded-md border border-slate-700/50 transition-colors"
+              className="px-2.5 py-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] bg-[var(--bg-elevated)] rounded-md border border-[var(--border-subtle)] transition-colors"
             >
               Today
             </button>
@@ -622,7 +667,7 @@ export default function BudgetDash() {
             <div>
               <div className="grid grid-cols-7 gap-px mb-1">
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-                  <div key={d} className="text-center text-[10px] font-medium text-slate-500 py-1">{d}</div>
+                  <div key={d} className="text-center text-[10px] font-medium text-[var(--text-faint)] py-1">{d}</div>
                 ))}
               </div>
               <div className="grid grid-cols-7 gap-px">
@@ -637,16 +682,16 @@ export default function BudgetDash() {
                       key={i}
                       onClick={() => { setCalDate(cell.date); setCalView('day') }}
                       className={`relative p-1.5 rounded-lg text-left min-h-[3.5rem] transition-colors ${
-                        cell.inMonth ? 'hover:bg-slate-800/60' : 'opacity-30'
-                      } ${isToday ? 'ring-1 ring-indigo-500/50' : ''}`}
+                        cell.inMonth ? 'hover:bg-[var(--bg-elevated)]' : 'opacity-30'
+                      } ${isToday ? 'ring-1 ring-[var(--c-accent-border)]' : ''}`}
                     >
-                      <div className={`text-xs font-medium ${isToday ? 'text-indigo-400' : cell.inMonth ? 'text-slate-300' : 'text-slate-600'}`}>
+                      <div className={`text-xs font-medium ${isToday ? 'text-[var(--c-accent)]' : cell.inMonth ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-faint)]'}`}>
                         {cell.date.getDate()}
                       </div>
                       {txs.length > 0 && cell.inMonth && (
                         <div className="mt-0.5 space-y-0.5">
-                          {exp > 0 && <div className="text-[9px] text-red-400 truncate">-{formatCurrency(exp)}</div>}
-                          {inc > 0 && <div className="text-[9px] text-emerald-400 truncate">+{formatCurrency(inc)}</div>}
+                          {exp > 0 && <div className="text-[9px] text-[var(--c-expense)] truncate">-{formatCurrency(exp)}</div>}
+                          {inc > 0 && <div className="text-[9px] text-[var(--c-income)] truncate">+{formatCurrency(inc)}</div>}
                         </div>
                       )}
                       {txs.length > 0 && cell.inMonth && (
@@ -678,15 +723,15 @@ export default function BudgetDash() {
                     <button
                       key={dk}
                       onClick={() => { setCalDate(d); setCalView('day') }}
-                      className={`rounded-lg p-2 text-left transition-colors hover:bg-slate-800/60 ${isToday ? 'ring-1 ring-indigo-500/50' : ''}`}
+                      className={`rounded-lg p-2 text-left transition-colors hover:bg-[var(--bg-elevated)] ${isToday ? 'ring-1 ring-[var(--c-accent-border)]' : ''}`}
                     >
-                      <div className="text-[10px] text-slate-500 font-medium">{dayNames[d.getDay()]}</div>
-                      <div className={`text-sm font-semibold ${isToday ? 'text-indigo-400' : 'text-slate-200'}`}>{d.getDate()}</div>
+                      <div className="text-[10px] text-[var(--text-faint)] font-medium">{dayNames[d.getDay()]}</div>
+                      <div className={`text-sm font-semibold ${isToday ? 'text-[var(--c-accent)]' : 'text-[var(--text-secondary)]'}`}>{d.getDate()}</div>
                       <div className="mt-1 space-y-0.5 min-h-[3rem]">
-                        {exp > 0 && <div className="text-[10px] text-red-400">-{formatCurrency(exp)}</div>}
-                        {inc > 0 && <div className="text-[10px] text-emerald-400">+{formatCurrency(inc)}</div>}
+                        {exp > 0 && <div className="text-[10px] text-[var(--c-expense)]">-{formatCurrency(exp)}</div>}
+                        {inc > 0 && <div className="text-[10px] text-[var(--c-income)]">+{formatCurrency(inc)}</div>}
                         {txs.map((tx) => (
-                          <div key={tx.id} className="flex items-center gap-1 text-[10px] text-slate-400 truncate">
+                          <div key={tx.id} className="flex items-center gap-1 text-[10px] text-[var(--text-muted)] truncate">
                             <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: catMeta(tx.category).color }} />
                             {catMeta(tx.category).emoji} {formatCurrency(tx.amount)}
                           </div>
@@ -708,40 +753,40 @@ export default function BudgetDash() {
             return (
               <div>
                 <div className="flex items-center gap-4 mb-3">
-                  {exp > 0 && <span className="text-sm text-red-400 font-medium">Expenses: {formatCurrency(exp)}</span>}
-                  {inc > 0 && <span className="text-sm text-emerald-400 font-medium">Income: {formatCurrency(inc)}</span>}
-                  {txs.length === 0 && <span className="text-sm text-slate-500">No transactions</span>}
+                  {exp > 0 && <span className="text-sm text-[var(--c-expense)] font-medium">Expenses: {formatCurrency(exp)}</span>}
+                  {inc > 0 && <span className="text-sm text-[var(--c-income)] font-medium">Income: {formatCurrency(inc)}</span>}
+                  {txs.length === 0 && <span className="text-sm text-[var(--text-faint)]">No transactions</span>}
                 </div>
                 {txs.length > 0 && (
                   <div className="space-y-1">
                     {txs.map((tx) => {
                       const meta = catMeta(tx.category)
                       return (
-                        <div key={tx.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-800/40 hover:bg-slate-800/60 transition-colors">
+                        <div key={tx.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[var(--bg-elevated)] hover:bg-[var(--bg-elevated)] transition-colors">
                           <span className="text-lg">{meta.emoji}</span>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-slate-200">{tx.category}</span>
-                              <span className="text-xs text-slate-500">{whoNames[tx.who as Who]}</span>
+                              <span className="text-sm font-medium text-[var(--text-secondary)]">{tx.category}</span>
+                              <span className="text-xs text-[var(--text-faint)]">{whoNames[tx.who as Who]}</span>
                               {tx.tag && (
                                 <span className={`text-[10px] px-1 py-0.5 rounded-full ${
                                   tx.tag === 'Reimbursable'
-                                    ? 'bg-indigo-900/50 text-indigo-300 border border-indigo-700/50'
-                                    : 'bg-amber-900/30 text-amber-300 border border-amber-700/50'
+                                    ? 'bg-[var(--c-tag-reimb-bg)] text-[var(--c-accent)] border border-[var(--c-tag-reimb-border)]'
+                                    : 'bg-[var(--c-tag-personal-bg)] text-[var(--c-tag-personal)] border border-[var(--c-tag-personal-border)]'
                                 }`}>{tx.tag}</span>
                               )}
                             </div>
-                            {tx.note && <p className="text-xs text-slate-500 truncate">{tx.note}</p>}
+                            {tx.note && <p className="text-xs text-[var(--text-faint)] truncate">{tx.note}</p>}
                           </div>
                           <div
                             className="text-sm font-semibold"
-                            style={{ color: tx.type === 'expense' ? '#f87171' : '#34d399' }}
+                            style={{ color: tx.type === 'expense' ? 'var(--expense-color)' : 'var(--income-color)' }}
                           >
                             {tx.type === 'expense' ? '-' : '+'}{formatCurrency(tx.amount)}
                           </div>
                           <button
                             onClick={() => { startEdit(tx); setCalOpen(false) }}
-                            className="p-1 text-slate-500 hover:text-indigo-400 transition-all"
+                            className="p-1 text-[var(--text-faint)] hover:text-[var(--c-accent)] transition-all"
                           >
                             <Pencil size={13} />
                           </button>
@@ -757,32 +802,32 @@ export default function BudgetDash() {
       )}
 
       {/* Starting Amount Input */}
-      <div className="bg-gradient-to-r from-indigo-900/60 to-blue-900/60 rounded-xl border border-indigo-800/50 p-4">
+      <div className="bg-gradient-to-r from-[var(--banner-from)] to-[var(--banner-to)] rounded-xl border border-[var(--banner-border)] p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-600/30 rounded-lg">
-              <DollarSign size={20} className="text-indigo-400" />
+            <div className="p-2 bg-[var(--c-accent-bg)] rounded-lg">
+              <DollarSign size={20} className="text-[var(--c-accent)]" />
             </div>
             <div>
-              <p className="text-xs text-indigo-300 font-medium">Starting Amount for {MONTH_NAMES[month]}</p>
-              <p className="text-xs text-indigo-400/60">How much do you have at the start of this month?</p>
+              <p className="text-xs text-[var(--c-accent)] font-medium">Starting Amount for {MONTH_NAMES[month]}</p>
+              <p className="text-xs text-[var(--banner-text-dim)]">How much do you have at the start of this month?</p>
             </div>
           </div>
           {editingStarting ? (
             <div className="flex items-center gap-2">
-              <span className="text-xl text-indigo-300">$</span>
+              <span className="text-xl text-[var(--c-accent)]">$</span>
               <input
                 autoFocus
                 type="number"
                 min="0"
                 step="0.01"
-                className="w-40 bg-slate-900/60 border border-indigo-600 rounded-lg px-3 py-2 text-xl font-bold text-white outline-none focus:border-indigo-400"
+                className="w-40 bg-[var(--bg-card)] border border-[var(--btn-primary)] rounded-lg px-3 py-2 text-xl font-bold text-[var(--text-primary)] outline-none focus:border-[var(--c-accent)]"
                 value={startingInput}
                 onChange={(e) => setStartingInput(e.target.value)}
                 onBlur={commitStarting}
                 onKeyDown={(e) => e.key === 'Enter' && commitStarting()}
               />
-              <button onClick={commitStarting} className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-500 transition-colors">
+              <button onClick={commitStarting} className="px-3 py-2 bg-[var(--btn-primary)] text-white rounded-lg text-sm hover:bg-[var(--btn-primary-hover)] transition-colors">
                 Set
               </button>
             </div>
@@ -790,14 +835,14 @@ export default function BudgetDash() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setEditingStarting(true)}
-                className="text-2xl font-bold text-white hover:text-indigo-300 transition-colors"
+                className="text-2xl font-bold text-[var(--text-primary)] hover:text-[var(--c-accent)] transition-colors"
               >
                 {monthData.startingAmount > 0 ? formatCurrency(monthData.startingAmount) : 'Set amount →'}
               </button>
               {lastAction === 'starting' && (
                 <button
                   onClick={handleUndo}
-                  className="flex items-center gap-1 px-2 py-1 text-xs text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded-md hover:bg-indigo-500/20 transition-all"
+                  className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--c-accent)] bg-[var(--c-accent-bg-subtle)] border border-indigo-500/20 rounded-md hover:bg-[var(--c-accent-bg)] transition-all"
                 >
                   <Undo2 size={11} /> Undo
                 </button>
@@ -811,15 +856,15 @@ export default function BudgetDash() {
       <div className="grid md:grid-cols-12 gap-4 items-start">
 
       {/* Add Transaction */}
-      <div className="md:col-span-7 bg-slate-900/80 rounded-xl border border-slate-800 p-5 space-y-5">
+      <div className="md:col-span-7 bg-[var(--bg-card)] rounded-xl border border-[var(--border-main)] p-5 space-y-5">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-white text-lg flex items-center gap-2">
-            {editingTxId ? <><Pencil size={18} className="text-amber-400" /> Edit Transaction</> : <><Plus size={18} className="text-indigo-400" /> Add Transaction</>}
+          <h2 className="font-semibold text-[var(--text-primary)] text-lg flex items-center gap-2">
+            {editingTxId ? <><Pencil size={18} className="text-[var(--btn-edit)]" /> Edit Transaction</> : <><Plus size={18} className="text-[var(--c-accent)]" /> Add Transaction</>}
           </h2>
           {editingTxId && (
             <button
               onClick={cancelEdit}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200 bg-slate-800/60 rounded-lg border border-slate-700/50 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] bg-[var(--bg-elevated)] rounded-lg border border-[var(--border-subtle)] transition-colors"
             >
               <X size={12} /> Cancel
             </button>
@@ -838,9 +883,9 @@ export default function BudgetDash() {
               className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                 form.type === t
                   ? t === 'expense'
-                    ? 'bg-red-500/20 text-red-300 border-2 border-red-500/60'
-                    : 'bg-emerald-500/20 text-emerald-300 border-2 border-emerald-500/60'
-                  : 'bg-slate-800/60 text-slate-400 border-2 border-transparent hover:bg-slate-700/60'
+                    ? 'bg-[var(--c-expense-bg)] text-[var(--c-expense)] border-2 border-[var(--c-expense-border)]'
+                    : 'bg-[var(--c-income-bg)] text-[var(--c-income)] border-2 border-[var(--c-income-border)]'
+                  : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] border-2 border-transparent hover:bg-[var(--bg-hover)]'
               }`}
             >
               {t === 'expense' ? 'Expense' : 'Income'}
@@ -850,7 +895,7 @@ export default function BudgetDash() {
 
         {/* Category pills */}
         <div>
-          <label className="text-xs font-medium text-slate-400 block mb-2">Category</label>
+          <label className="text-xs font-medium text-[var(--text-muted)] block mb-2">Category</label>
           <div className="flex flex-wrap gap-2">
             {cats.map((c) => (
               <button
@@ -858,8 +903,8 @@ export default function BudgetDash() {
                 onClick={() => setForm((f) => ({ ...f, category: c.name }))}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all ${
                   form.category === c.name
-                    ? 'bg-indigo-600/30 text-white border border-indigo-500/70 shadow-sm shadow-indigo-500/20'
-                    : 'bg-slate-800/60 text-slate-300 border border-slate-700/50 hover:bg-slate-700/60 hover:text-slate-100'
+                    ? 'bg-[var(--c-accent-bg)] text-[var(--text-primary)] border border-[var(--c-accent-border-strong)] shadow-sm shadow-[var(--c-accent-border)]'
+                    : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]'
                 }`}
               >
                 <span className="text-base">{c.emoji}</span> {c.name}
@@ -872,7 +917,7 @@ export default function BudgetDash() {
                   maxLength={4}
                   value={newCatEmoji}
                   onChange={(e) => setNewCatEmoji(e.target.value)}
-                  className="w-10 px-1 py-2 text-center text-base bg-slate-800/80 border border-slate-700 rounded-lg outline-none focus:border-indigo-500"
+                  className="w-10 px-1 py-2 text-center text-base bg-[var(--bg-input)] border border-[var(--border-input)] rounded-lg outline-none focus:border-[var(--c-accent)]"
                 />
                 <input
                   autoFocus
@@ -881,15 +926,15 @@ export default function BudgetDash() {
                   value={newCatName}
                   onChange={(e) => setNewCatName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') addCustomCategory(); if (e.key === 'Escape') setAddingCat(false) }}
-                  className="w-28 px-2 py-2 text-sm bg-slate-800/80 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 outline-none focus:border-indigo-500"
+                  className="w-28 px-2 py-2 text-sm bg-[var(--bg-input)] border border-[var(--border-input)] rounded-lg text-[var(--text-secondary)] placeholder-[var(--text-faint)] outline-none focus:border-[var(--c-accent)]"
                 />
-                <button onClick={addCustomCategory} className="px-2 py-2 bg-indigo-600 text-white rounded-lg text-xs hover:bg-indigo-500 transition-colors">Add</button>
-                <button onClick={() => { setAddingCat(false); setNewCatName(''); setNewCatEmoji('🏷️') }} className="p-2 text-slate-500 hover:text-slate-300 transition-colors"><X size={14} /></button>
+                <button onClick={addCustomCategory} className="px-2 py-2 bg-[var(--btn-primary)] text-white rounded-lg text-xs hover:bg-[var(--btn-primary-hover)] transition-colors">Add</button>
+                <button onClick={() => { setAddingCat(false); setNewCatName(''); setNewCatEmoji('🏷️') }} className="p-2 text-[var(--text-faint)] hover:text-[var(--text-tertiary)] transition-colors"><X size={14} /></button>
               </div>
             ) : (
               <button
                 onClick={() => setAddingCat(true)}
-                className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm bg-slate-800/40 text-slate-500 border border-dashed border-slate-700/50 hover:bg-slate-700/40 hover:text-slate-300 transition-all"
+                className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm bg-[var(--bg-elevated)] text-[var(--text-faint)] border border-dashed border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-tertiary)] transition-all"
               >
                 <Plus size={14} /> Custom
               </button>
@@ -900,25 +945,25 @@ export default function BudgetDash() {
         {/* Amount + Date row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-medium text-slate-400 block mb-2">Amount</label>
+            <label className="text-xs font-medium text-[var(--text-muted)] block mb-2">Amount</label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-slate-400 font-semibold">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[var(--text-muted)] font-semibold">$</span>
               <input
                 type="number"
                 min="0"
                 step="0.01"
                 placeholder="0.00"
-                className="w-full pl-8 pr-4 py-3 text-lg font-semibold bg-slate-800/80 border border-slate-700 rounded-lg text-white placeholder-slate-600 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                className="w-full pl-8 pr-4 py-3 text-lg font-semibold bg-[var(--bg-input)] border border-[var(--border-input)] rounded-lg text-[var(--text-primary)] placeholder-[var(--text-faint)] outline-none focus:border-[var(--c-accent)] focus:ring-1 focus:ring-[var(--c-accent-border)] transition-all"
                 value={form.amount}
                 onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
               />
             </div>
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-400 block mb-2">Date</label>
+            <label className="text-xs font-medium text-[var(--text-muted)] block mb-2">Date</label>
             <input
               type="date"
-              className="w-full px-4 py-3 text-sm bg-slate-800/80 border border-slate-700 rounded-lg text-slate-200 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+              className="w-full px-4 py-3 text-sm bg-[var(--bg-input)] border border-[var(--border-input)] rounded-lg text-[var(--text-secondary)] outline-none focus:border-[var(--c-accent)] focus:ring-1 focus:ring-[var(--c-accent-border)] transition-all"
               value={form.date}
               onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
             />
@@ -930,10 +975,10 @@ export default function BudgetDash() {
           {/* Who segmented toggle */}
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <label className="text-xs font-medium text-slate-400">Who</label>
+              <label className="text-xs font-medium text-[var(--text-muted)]">Who</label>
               <button
                 onClick={() => setEditingWhoNames((v) => !v)}
-                className="p-0.5 text-slate-500 hover:text-indigo-400 transition-colors"
+                className="p-0.5 text-[var(--text-faint)] hover:text-[var(--c-accent)] transition-colors"
                 title="Rename"
               >
                 <Pencil size={10} />
@@ -946,25 +991,25 @@ export default function BudgetDash() {
                     key={who}
                     type="text"
                     maxLength={12}
-                    className="w-full px-2 py-1.5 text-sm text-center bg-slate-800/80 border border-slate-700 rounded-lg text-slate-200 outline-none focus:border-indigo-500"
+                    className="w-full px-2 py-1.5 text-sm text-center bg-[var(--bg-input)] border border-[var(--border-input)] rounded-lg text-[var(--text-secondary)] outline-none focus:border-[var(--c-accent)]"
                     value={whoNames[who]}
                     onChange={(e) => setWhoNames((prev) => ({ ...prev, [who]: e.target.value || who }))}
                   />
                 ))}
                 <button
                   onClick={() => setEditingWhoNames(false)}
-                  className="p-1.5 text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0"
+                  className="p-1.5 text-[var(--text-faint)] hover:text-[var(--text-tertiary)] transition-colors flex-shrink-0"
                 >
                   <X size={14} />
                 </button>
               </div>
             ) : (
-              <div className="inline-flex rounded-lg bg-slate-800/80 border border-slate-700/50 p-0.5">
+              <div className="inline-flex rounded-lg bg-[var(--bg-input)] border border-[var(--border-subtle)] p-0.5">
                 {(['Me', 'Partner', 'Shared'] as const).map((who) => {
                   const colors: Record<Who, string> = {
-                    Me: 'bg-blue-500/20 text-blue-300 border border-blue-500/40',
-                    Partner: 'bg-pink-500/20 text-pink-300 border border-pink-500/40',
-                    Shared: 'bg-violet-500/20 text-violet-300 border border-violet-500/40',
+                    Me: 'bg-[var(--c-who-me-bg)] text-[var(--c-who-me)] border border-[var(--c-who-me-border)]',
+                    Partner: 'bg-[var(--c-who-partner-bg)] text-[var(--c-who-partner)] border border-[var(--c-who-partner-border)]',
+                    Shared: 'bg-[var(--c-who-shared-bg)] text-[var(--c-who-shared)] border border-[var(--c-who-shared-border)]',
                   }
                   return (
                     <button
@@ -973,7 +1018,7 @@ export default function BudgetDash() {
                       className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
                         form.who === who
                           ? colors[who] + ' shadow-sm'
-                          : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                          : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] border border-transparent'
                       }`}
                     >
                       {whoNames[who]}
@@ -987,8 +1032,8 @@ export default function BudgetDash() {
           {/* Tag segmented toggle (expense only) */}
           {form.type === 'expense' && (
             <div>
-              <label className="text-xs font-medium text-slate-400 block mb-2">Tag</label>
-              <div className="inline-flex rounded-lg bg-slate-800/80 border border-slate-700/50 p-0.5">
+              <label className="text-xs font-medium text-[var(--text-muted)] block mb-2">Tag</label>
+              <div className="inline-flex rounded-lg bg-[var(--bg-input)] border border-[var(--border-subtle)] p-0.5">
                 {(['Personal', 'Reimbursable'] as const).map((tag) => (
                   <button
                     key={tag}
@@ -996,9 +1041,9 @@ export default function BudgetDash() {
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
                       form.tag === tag
                         ? tag === 'Reimbursable'
-                          ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm'
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                          ? 'bg-[var(--c-accent-bg)] text-[var(--c-accent)] border border-[var(--c-accent-border)] shadow-sm'
+                          : 'bg-[var(--c-tag-personal-bg)] text-[var(--c-tag-personal)] border border-[var(--c-tag-personal-border)] shadow-sm'
+                        : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] border border-transparent'
                     }`}
                   >
                     {tag === 'Reimbursable' ? <Briefcase size={13} /> : <Coffee size={13} />}
@@ -1015,7 +1060,7 @@ export default function BudgetDash() {
           <input
             type="text"
             placeholder="Add a note (optional)"
-            className="flex-1 px-4 py-3 text-sm bg-slate-800/80 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+            className="flex-1 px-4 py-3 text-sm bg-[var(--bg-input)] border border-[var(--border-input)] rounded-lg text-[var(--text-secondary)] placeholder-[var(--text-faint)] outline-none focus:border-[var(--c-accent)] focus:ring-1 focus:ring-[var(--c-accent-border)] transition-all"
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
             onKeyDown={(e) => e.key === 'Enter' && (editingTxId ? saveEdit() : addTransaction())}
@@ -1023,7 +1068,7 @@ export default function BudgetDash() {
           {editingTxId ? (
             <button
               onClick={saveEdit}
-              className="px-6 py-3 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-500 transition-colors flex items-center gap-2 text-sm whitespace-nowrap"
+              className="px-6 py-3 bg-[var(--btn-edit)] text-white rounded-lg font-semibold hover:bg-[var(--btn-edit-hover)] transition-colors flex items-center gap-2 text-sm whitespace-nowrap"
             >
               <Pencil size={16} /> Save
             </button>
@@ -1031,14 +1076,14 @@ export default function BudgetDash() {
             <>
               <button
                 onClick={addTransaction}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-500 transition-colors flex items-center gap-2 text-sm whitespace-nowrap"
+                className="px-6 py-3 bg-[var(--btn-primary)] text-white rounded-lg font-semibold hover:bg-[var(--btn-primary-hover)] transition-colors flex items-center gap-2 text-sm whitespace-nowrap"
               >
                 <Plus size={16} /> Add
               </button>
               {lastAction === 'add' && (
                 <button
                   onClick={handleUndo}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-all"
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-[var(--c-tag-personal)] bg-[var(--c-tag-personal-bg-subtle)] border border-amber-500/20 rounded-lg hover:bg-[var(--c-tag-personal-bg)] transition-all"
                 >
                   <Undo2 size={11} /> Undo
                 </button>
@@ -1049,14 +1094,14 @@ export default function BudgetDash() {
       </div>
 
       {/* Transactions */}
-      <div className="md:col-span-5 bg-slate-900/80 rounded-xl border border-slate-800 p-4 flex flex-col">
+      <div className="md:col-span-5 bg-[var(--bg-card)] rounded-xl border border-[var(--border-main)] p-4 flex flex-col">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <h2 className="font-semibold text-slate-200">Transactions</h2>
+            <h2 className="font-semibold text-[var(--text-secondary)]">Transactions</h2>
             {lastAction === 'delete' && (
               <button
                 onClick={handleUndo}
-                className="flex items-center gap-1 px-2 py-1 text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded-md hover:bg-red-500/20 transition-all"
+                className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--c-expense)] bg-[var(--c-expense-bg-subtle)] border border-red-500/20 rounded-md hover:bg-[var(--c-expense-bg)] transition-all"
               >
                 <Undo2 size={11} /> Undo delete
               </button>
@@ -1067,17 +1112,17 @@ export default function BudgetDash() {
         {/* Filters */}
         <div className="flex flex-wrap gap-1.5 mb-3">
           <div className="relative flex-1 min-w-0">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
             <input
               type="text"
               placeholder="Search..."
-              className="w-full pl-8 pr-3 py-1.5 text-sm bg-slate-800 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500"
+              className="w-full pl-8 pr-3 py-1.5 text-sm bg-[var(--bg-input)] border border-[var(--border-input)] rounded-lg text-[var(--text-secondary)] placeholder-[var(--text-faint)]"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <select
-            className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-slate-200"
+            className="text-xs bg-[var(--bg-input)] border border-[var(--border-input)] rounded-lg px-1.5 py-1.5 text-[var(--text-secondary)]"
             value={filterWho}
             onChange={(e) => setFilterWho(e.target.value as Who | 'All')}
           >
@@ -1087,7 +1132,7 @@ export default function BudgetDash() {
             <option value="Shared">{whoNames.Shared}</option>
           </select>
           <select
-            className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-slate-200"
+            className="text-xs bg-[var(--bg-input)] border border-[var(--border-input)] rounded-lg px-1.5 py-1.5 text-[var(--text-secondary)]"
             value={filterCat}
             onChange={(e) => setFilterCat(e.target.value)}
           >
@@ -1097,7 +1142,7 @@ export default function BudgetDash() {
             ))}
           </select>
           <select
-            className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-slate-200"
+            className="text-xs bg-[var(--bg-input)] border border-[var(--border-input)] rounded-lg px-1.5 py-1.5 text-[var(--text-secondary)]"
             value={filterTag}
             onChange={(e) => setFilterTag(e.target.value as ExpenseTag | 'All')}
           >
@@ -1109,7 +1154,7 @@ export default function BudgetDash() {
 
         {/* Transaction list */}
         {filtered.length === 0 ? (
-          <p className="text-slate-500 text-sm text-center py-6">No transactions found</p>
+          <p className="text-[var(--text-faint)] text-sm text-center py-6">No transactions found</p>
         ) : (
           <div className="space-y-1 flex-1 overflow-y-auto max-h-[28rem]">
             {[...filtered].sort((a, b) => b.date.localeCompare(a.date)).map((t) => {
@@ -1120,45 +1165,45 @@ export default function BudgetDash() {
                   key={t.id}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors group ${
                     editingTxId === t.id
-                      ? 'bg-amber-500/10 border border-amber-500/30'
-                      : 'hover:bg-slate-800/60'
+                      ? 'bg-[var(--c-tag-personal-bg-subtle)] border border-amber-500/30'
+                      : 'hover:bg-[var(--bg-elevated)]'
                   }`}
                 >
                   <span className="text-base w-6 flex-shrink-0">{meta.emoji}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-medium text-slate-200 truncate">{t.category}</span>
-                      <span className="text-xs text-slate-500">{whoNames[t.who as Who]}</span>
+                      <span className="text-sm font-medium text-[var(--text-secondary)] truncate">{t.category}</span>
+                      <span className="text-xs text-[var(--text-faint)]">{whoNames[t.who as Who]}</span>
                       {tag && (
                         <span className={`text-[10px] px-1 py-0.5 rounded-full ${
                           tag === 'Reimbursable'
-                            ? 'bg-indigo-900/50 text-indigo-300 border border-indigo-700/50'
-                            : 'bg-amber-900/30 text-amber-300 border border-amber-700/50'
+                            ? 'bg-[var(--c-tag-reimb-bg)] text-[var(--c-accent)] border border-[var(--c-tag-reimb-border)]'
+                            : 'bg-[var(--c-tag-personal-bg)] text-[var(--c-tag-personal)] border border-[var(--c-tag-personal-border)]'
                         }`}>
                           {tag}
                         </span>
                       )}
                     </div>
-                    {t.note && <p className="text-xs text-slate-500 truncate">{t.note}</p>}
+                    {t.note && <p className="text-xs text-[var(--text-faint)] truncate">{t.note}</p>}
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div
                       className="text-sm font-semibold"
-                      style={{ color: t.type === 'expense' ? '#f87171' : '#34d399' }}
+                      style={{ color: t.type === 'expense' ? 'var(--expense-color)' : 'var(--income-color)' }}
                     >
                       {t.type === 'expense' ? '-' : '+'}{formatCurrency(t.amount)}
                     </div>
-                    <div className="text-[10px] text-slate-500">{t.date}</div>
+                    <div className="text-[10px] text-[var(--text-faint)]">{t.date}</div>
                   </div>
                   <button
                     onClick={() => startEdit(t)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-indigo-400 transition-all"
+                    className="opacity-0 group-hover:opacity-100 p-1 text-[var(--text-faint)] hover:text-[var(--c-accent)] transition-all"
                   >
                     <Pencil size={13} />
                   </button>
                   <button
                     onClick={() => deleteTransaction(t.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 transition-all"
+                    className="opacity-0 group-hover:opacity-100 p-1 text-[var(--text-faint)] hover:text-[var(--c-expense)] transition-all"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -1172,43 +1217,43 @@ export default function BudgetDash() {
       </div>{/* end grid */}
 
       {/* Summary Overview */}
-      <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-5 space-y-4">
-        <h2 className="font-semibold text-white text-lg">Monthly Overview</h2>
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-main)] p-5 space-y-4">
+        <h2 className="font-semibold text-[var(--text-primary)] text-lg">Monthly Overview</h2>
 
         {/* Balance cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50">
-            <p className="text-xs text-slate-400">Starting</p>
-            <p className="text-lg font-bold text-slate-200">{formatCurrency(monthData.startingAmount)}</p>
+          <div className="bg-[var(--bg-elevated)] rounded-lg p-3 border border-[var(--border-subtle)]">
+            <p className="text-xs text-[var(--text-muted)]">Starting</p>
+            <p className="text-lg font-bold text-[var(--text-secondary)]">{formatCurrency(monthData.startingAmount)}</p>
           </div>
-          <div className="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50">
-            <p className="text-xs text-emerald-400">Income</p>
-            <p className="text-lg font-bold text-emerald-400">{formatCurrency(totalIncome)}</p>
+          <div className="bg-[var(--bg-elevated)] rounded-lg p-3 border border-[var(--border-subtle)]">
+            <p className="text-xs text-[var(--c-income)]">Income</p>
+            <p className="text-lg font-bold text-[var(--c-income)]">{formatCurrency(totalIncome)}</p>
           </div>
-          <div className="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50">
-            <p className="text-xs text-red-400">Expenses</p>
-            <p className="text-lg font-bold text-red-400">{formatCurrency(totalExpenses)}</p>
+          <div className="bg-[var(--bg-elevated)] rounded-lg p-3 border border-[var(--border-subtle)]">
+            <p className="text-xs text-[var(--c-expense)]">Expenses</p>
+            <p className="text-lg font-bold text-[var(--c-expense)]">{formatCurrency(totalExpenses)}</p>
           </div>
-          <div className="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50">
-            <p className="text-xs text-blue-400">Balance</p>
-            <p className={`text-lg font-bold ${balance >= 0 ? 'text-blue-400' : 'text-red-400'}`}>{formatCurrency(balance)}</p>
+          <div className="bg-[var(--bg-elevated)] rounded-lg p-3 border border-[var(--border-subtle)]">
+            <p className="text-xs text-[var(--c-who-me)]">Balance</p>
+            <p className={`text-lg font-bold ${balance >= 0 ? 'text-[var(--c-who-me)]' : 'text-[var(--c-expense)]'}`}>{formatCurrency(balance)}</p>
           </div>
         </div>
 
         {/* Budget progress */}
         {budget > 0 && (
           <div className="space-y-1">
-            <div className="flex justify-between text-sm text-slate-400">
+            <div className="flex justify-between text-sm text-[var(--text-muted)]">
               <span>Budget used</span>
               <span>{Math.round(spentRatio * 100)}%</span>
             </div>
-            <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-3 bg-[var(--bg-input)] rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all"
                 style={{ width: `${spentRatio * 100}%`, backgroundColor: progressColor }}
               />
             </div>
-            <div className="flex justify-between text-xs text-slate-500">
+            <div className="flex justify-between text-xs text-[var(--text-faint)]">
               <span>{formatCurrency(totalExpenses)} spent</span>
               <span>{formatCurrency(budget)} limit</span>
             </div>
@@ -1218,29 +1263,29 @@ export default function BudgetDash() {
         {/* Who breakdown + Reimbursable/Personal */}
         <div className="grid md:grid-cols-3 gap-3">
           {/* By person */}
-          <div className="bg-slate-800/40 rounded-lg p-3 border border-slate-700/30">
-            <p className="text-xs text-slate-400 mb-2 font-medium">Expenses by Person</p>
+          <div className="bg-[var(--bg-elevated)] rounded-lg p-3 border border-[var(--border-subtle)]">
+            <p className="text-xs text-[var(--text-muted)] mb-2 font-medium">Expenses by Person</p>
             {(['Me', 'Partner', 'Shared'] as const).map((who) => (
               <div key={who} className="flex justify-between text-sm py-0.5">
-                <span className="text-slate-300">{whoNames[who]}</span>
-                <span className="text-slate-200 font-medium">{formatCurrency(byWho[who] ?? 0)}</span>
+                <span className="text-[var(--text-tertiary)]">{whoNames[who]}</span>
+                <span className="text-[var(--text-secondary)] font-medium">{formatCurrency(byWho[who] ?? 0)}</span>
               </div>
             ))}
           </div>
 
           {/* Reimbursable vs Personal */}
-          <div className="bg-slate-800/40 rounded-lg p-3 border border-slate-700/30">
-            <p className="text-xs text-slate-400 mb-2 font-medium">Reimbursable vs Personal</p>
+          <div className="bg-[var(--bg-elevated)] rounded-lg p-3 border border-[var(--border-subtle)]">
+            <p className="text-xs text-[var(--text-muted)] mb-2 font-medium">Reimbursable vs Personal</p>
             <div className="flex justify-between text-sm py-0.5">
-              <span className="flex items-center gap-1.5 text-indigo-300"><Briefcase size={12} /> Reimbursable</span>
-              <span className="text-slate-200 font-medium">{formatCurrency(workExpenses)}</span>
+              <span className="flex items-center gap-1.5 text-[var(--c-accent)]"><Briefcase size={12} /> Reimbursable</span>
+              <span className="text-[var(--text-secondary)] font-medium">{formatCurrency(workExpenses)}</span>
             </div>
             <div className="flex justify-between text-sm py-0.5">
-              <span className="flex items-center gap-1.5 text-amber-300"><Coffee size={12} /> Personal</span>
-              <span className="text-slate-200 font-medium">{formatCurrency(nonWorkExpenses)}</span>
+              <span className="flex items-center gap-1.5 text-[var(--c-tag-personal)]"><Coffee size={12} /> Personal</span>
+              <span className="text-[var(--text-secondary)] font-medium">{formatCurrency(nonWorkExpenses)}</span>
             </div>
             {totalExpenses > 0 && (
-              <div className="mt-2 h-2 bg-slate-700 rounded-full overflow-hidden flex">
+              <div className="mt-2 h-2 bg-[var(--progress-track)] rounded-full overflow-hidden flex">
                 {workExpenses > 0 && (
                   <div className="h-full bg-indigo-500" style={{ width: `${(workExpenses / totalExpenses) * 100}%` }} />
                 )}
@@ -1252,19 +1297,19 @@ export default function BudgetDash() {
           </div>
 
           {/* Quick stats */}
-          <div className="bg-slate-800/40 rounded-lg p-3 border border-slate-700/30">
-            <p className="text-xs text-slate-400 mb-2 font-medium">Quick Stats</p>
+          <div className="bg-[var(--bg-elevated)] rounded-lg p-3 border border-[var(--border-subtle)]">
+            <p className="text-xs text-[var(--text-muted)] mb-2 font-medium">Quick Stats</p>
             <div className="flex justify-between text-sm py-0.5">
-              <span className="text-slate-300">Transactions</span>
-              <span className="text-slate-200 font-medium">{monthData.transactions.length}</span>
+              <span className="text-[var(--text-tertiary)]">Transactions</span>
+              <span className="text-[var(--text-secondary)] font-medium">{monthData.transactions.length}</span>
             </div>
             <div className="flex justify-between text-sm py-0.5">
-              <span className="text-slate-300">Avg expense</span>
-              <span className="text-slate-200 font-medium">{expenses.length > 0 ? formatCurrency(totalExpenses / expenses.length) : '$0.00'}</span>
+              <span className="text-[var(--text-tertiary)]">Avg expense</span>
+              <span className="text-[var(--text-secondary)] font-medium">{expenses.length > 0 ? formatCurrency(totalExpenses / expenses.length) : '$0.00'}</span>
             </div>
             <div className="flex justify-between text-sm py-0.5">
-              <span className="text-slate-300">Top category</span>
-              <span className="text-slate-200 font-medium text-right truncate ml-2">
+              <span className="text-[var(--text-tertiary)]">Top category</span>
+              <span className="text-[var(--text-secondary)] font-medium text-right truncate ml-2">
                 {pieData.length > 0 ? (() => { const top = [...pieData].sort((a, b) => b.value - a.value)[0]; return catMeta(top.name).emoji + ' ' + top.name })() : '—'}
               </span>
             </div>
@@ -1275,10 +1320,10 @@ export default function BudgetDash() {
       {/* Charts */}
       <div className="grid md:grid-cols-2 gap-4">
         {/* Pie - Spending by Category */}
-        <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4">
-          <h2 className="font-semibold text-slate-200 mb-3">Spending by Category</h2>
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-main)] p-4">
+          <h2 className="font-semibold text-[var(--text-secondary)] mb-3">Spending by Category</h2>
           {pieData.length === 0 ? (
-            <p className="text-slate-500 text-sm text-center py-8">No expenses yet</p>
+            <p className="text-[var(--text-faint)] text-sm text-center py-8">No expenses yet</p>
           ) : (
             <div className="flex items-center gap-4">
               <ResponsiveContainer width={140} height={140}>
@@ -1290,7 +1335,7 @@ export default function BudgetDash() {
                   </Pie>
                   <Tooltip
                     formatter={(v) => formatCurrency(Number(v))}
-                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#e2e8f0' }}
+                    contentStyle={tooltipStyle}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -1300,8 +1345,8 @@ export default function BudgetDash() {
                   return (
                     <div key={d.name} className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: meta.color }} />
-                      <span className="flex-1 text-slate-400 truncate">{meta.emoji} {d.name}</span>
-                      <span className="font-medium text-slate-200">{formatCurrency(d.value)}</span>
+                      <span className="flex-1 text-[var(--text-muted)] truncate">{meta.emoji} {d.name}</span>
+                      <span className="font-medium text-[var(--text-secondary)]">{formatCurrency(d.value)}</span>
                     </div>
                   )
                 })}
@@ -1311,15 +1356,15 @@ export default function BudgetDash() {
         </div>
 
         {/* Bar - Daily Activity */}
-        <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4">
-          <h2 className="font-semibold text-slate-200 mb-3">Daily Activity</h2>
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-main)] p-4">
+          <h2 className="font-semibold text-[var(--text-secondary)] mb-3">Daily Activity</h2>
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={barData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#64748b' }} interval={4} />
-              <YAxis tick={{ fontSize: 10, fill: '#64748b' }} />
+              <XAxis dataKey="day" tick={{ fontSize: 10, fill: chartColors.axis }} interval={4} />
+              <YAxis tick={{ fontSize: 10, fill: chartColors.axis }} />
               <Tooltip
                 formatter={(v) => formatCurrency(Number(v))}
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#e2e8f0' }}
+                contentStyle={tooltipStyle}
               />
               <Bar dataKey="expense" fill="#ef4444" name="Expense" radius={[2,2,0,0]} />
               <Bar dataKey="income"  fill="#22c55e" name="Income"  radius={[2,2,0,0]} />
@@ -1329,8 +1374,8 @@ export default function BudgetDash() {
 
         {/* Reimbursable/Personal pie */}
         {workPieData.length > 0 && (
-          <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4">
-            <h2 className="font-semibold text-slate-200 mb-3">Reimbursable vs Personal Expenses</h2>
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-main)] p-4">
+            <h2 className="font-semibold text-[var(--text-secondary)] mb-3">Reimbursable vs Personal Expenses</h2>
             <div className="flex items-center gap-4">
               <ResponsiveContainer width={140} height={140}>
                 <PieChart>
@@ -1341,7 +1386,7 @@ export default function BudgetDash() {
                   </Pie>
                   <Tooltip
                     formatter={(v) => formatCurrency(Number(v))}
-                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#e2e8f0' }}
+                    contentStyle={tooltipStyle}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -1349,9 +1394,9 @@ export default function BudgetDash() {
                 {workPieData.map((d) => (
                   <div key={d.name} className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-                    <span className="text-sm text-slate-400">{d.name}</span>
-                    <span className="text-sm font-medium text-slate-200">{formatCurrency(d.value)}</span>
-                    <span className="text-xs text-slate-500">({totalExpenses > 0 ? Math.round((d.value / totalExpenses) * 100) : 0}%)</span>
+                    <span className="text-sm text-[var(--text-muted)]">{d.name}</span>
+                    <span className="text-sm font-medium text-[var(--text-secondary)]">{formatCurrency(d.value)}</span>
+                    <span className="text-xs text-[var(--text-faint)]">({totalExpenses > 0 ? Math.round((d.value / totalExpenses) * 100) : 0}%)</span>
                   </div>
                 ))}
               </div>

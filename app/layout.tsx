@@ -9,7 +9,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-[#0a0e1a] min-h-screen text-slate-100">{children}</body>
+      <body className="bg-[var(--bg-base)] min-h-screen text-[var(--text-secondary)]">
+        <script dangerouslySetInnerHTML={{ __html: `try{document.documentElement.setAttribute('data-theme',JSON.parse(localStorage.getItem('budget-dash-theme')||'"midnight"'))}catch(e){}` }} />
+        {children}
+      </body>
     </html>
   )
 }

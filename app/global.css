@@ -1,1 +1,202 @@
 @import "tailwindcss";
+
+:root,
+[data-theme="midnight"] {
+  /* Chrome */
+  --bg-base: #0a0e1a;
+  --bg-card: rgba(15, 23, 42, 0.8);
+  --bg-elevated: rgba(30, 41, 59, 0.6);
+  --bg-input: rgba(30, 41, 59, 0.8);
+  --bg-hover: rgba(51, 65, 85, 0.6);
+  --border-main: #1e293b;
+  --border-subtle: rgba(51, 65, 85, 0.5);
+  --border-input: #334155;
+  --text-primary: #ffffff;
+  --text-secondary: #e2e8f0;
+  --text-tertiary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-faint: #64748b;
+
+  /* Banner */
+  --banner-from: rgba(49, 46, 129, 0.6);
+  --banner-to: rgba(30, 58, 138, 0.6);
+  --banner-border: rgba(67, 56, 202, 0.5);
+  --banner-text-dim: rgba(129, 140, 248, 0.6);
+  --banner-icon-bg: rgba(79, 70, 229, 0.3);
+
+  /* Charts */
+  --progress-track: #1e293b;
+  --tooltip-bg: #1e293b;
+  --tooltip-border: #334155;
+
+  /* Inline amounts */
+  --expense-color: #f87171;
+  --income-color: #34d399;
+
+  /* Accent text */
+  --c-expense: #fca5a5;
+  --c-income: #6ee7b7;
+  --c-accent: #a5b4fc;
+  --c-who-me: #93c5fd;
+  --c-who-partner: #f9a8d4;
+  --c-who-shared: #c4b5fd;
+  --c-tag-personal: #fcd34d;
+
+  /* Accent backgrounds */
+  --c-expense-bg: rgba(239, 68, 68, 0.2);
+  --c-expense-bg-subtle: rgba(239, 68, 68, 0.1);
+  --c-income-bg: rgba(16, 185, 129, 0.2);
+  --c-accent-bg: rgba(79, 70, 229, 0.3);
+  --c-accent-bg-subtle: rgba(99, 102, 241, 0.1);
+  --c-who-me-bg: rgba(59, 130, 246, 0.2);
+  --c-who-partner-bg: rgba(236, 72, 153, 0.2);
+  --c-who-shared-bg: rgba(139, 92, 246, 0.2);
+  --c-tag-reimb-bg: rgba(49, 46, 129, 0.5);
+  --c-tag-personal-bg: rgba(245, 158, 11, 0.2);
+  --c-tag-personal-bg-subtle: rgba(245, 158, 11, 0.1);
+
+  /* Accent borders */
+  --c-expense-border: rgba(239, 68, 68, 0.6);
+  --c-income-border: rgba(16, 185, 129, 0.6);
+  --c-accent-border: rgba(99, 102, 241, 0.5);
+  --c-accent-border-strong: rgba(99, 102, 241, 0.7);
+  --c-who-me-border: rgba(59, 130, 246, 0.4);
+  --c-who-partner-border: rgba(236, 72, 153, 0.4);
+  --c-who-shared-border: rgba(139, 92, 246, 0.4);
+  --c-tag-reimb-border: rgba(67, 56, 202, 0.5);
+  --c-tag-personal-border: rgba(180, 83, 9, 0.5);
+
+  /* Buttons */
+  --btn-primary: #4f46e5;
+  --btn-primary-hover: #6366f1;
+  --btn-edit: #d97706;
+  --btn-edit-hover: #f59e0b;
+}
+
+[data-theme="abyss"] {
+  --bg-base: #000000;
+  --bg-card: rgba(10, 10, 10, 0.95);
+  --bg-elevated: rgba(20, 20, 20, 0.8);
+  --bg-input: rgba(15, 15, 15, 0.95);
+  --bg-hover: rgba(35, 35, 35, 0.8);
+  --border-main: #1a1a1a;
+  --border-subtle: rgba(40, 40, 40, 0.5);
+  --border-input: #2a2a2a;
+  --text-primary: #f5f5f5;
+  --text-secondary: #d4d4d4;
+  --text-tertiary: #a3a3a3;
+  --text-muted: #737373;
+  --text-faint: #525252;
+
+  --banner-from: rgba(30, 27, 75, 0.7);
+  --banner-to: rgba(23, 37, 84, 0.7);
+  --banner-border: rgba(55, 48, 163, 0.5);
+  --banner-text-dim: rgba(129, 140, 248, 0.5);
+  --banner-icon-bg: rgba(79, 70, 229, 0.25);
+
+  --progress-track: #1a1a1a;
+  --tooltip-bg: #0a0a0a;
+  --tooltip-border: #2a2a2a;
+
+  --expense-color: #f87171;
+  --income-color: #34d399;
+
+  --c-expense: #fca5a5;
+  --c-income: #6ee7b7;
+  --c-accent: #a5b4fc;
+  --c-who-me: #93c5fd;
+  --c-who-partner: #f9a8d4;
+  --c-who-shared: #c4b5fd;
+  --c-tag-personal: #fcd34d;
+
+  --c-expense-bg: rgba(239, 68, 68, 0.15);
+  --c-expense-bg-subtle: rgba(239, 68, 68, 0.08);
+  --c-income-bg: rgba(16, 185, 129, 0.15);
+  --c-accent-bg: rgba(79, 70, 229, 0.25);
+  --c-accent-bg-subtle: rgba(99, 102, 241, 0.08);
+  --c-who-me-bg: rgba(59, 130, 246, 0.15);
+  --c-who-partner-bg: rgba(236, 72, 153, 0.15);
+  --c-who-shared-bg: rgba(139, 92, 246, 0.15);
+  --c-tag-reimb-bg: rgba(49, 46, 129, 0.4);
+  --c-tag-personal-bg: rgba(245, 158, 11, 0.15);
+  --c-tag-personal-bg-subtle: rgba(245, 158, 11, 0.08);
+
+  --c-expense-border: rgba(239, 68, 68, 0.5);
+  --c-income-border: rgba(16, 185, 129, 0.5);
+  --c-accent-border: rgba(99, 102, 241, 0.4);
+  --c-accent-border-strong: rgba(99, 102, 241, 0.6);
+  --c-who-me-border: rgba(59, 130, 246, 0.35);
+  --c-who-partner-border: rgba(236, 72, 153, 0.35);
+  --c-who-shared-border: rgba(139, 92, 246, 0.35);
+  --c-tag-reimb-border: rgba(67, 56, 202, 0.4);
+  --c-tag-personal-border: rgba(180, 83, 9, 0.4);
+
+  --btn-primary: #4338ca;
+  --btn-primary-hover: #4f46e5;
+  --btn-edit: #b45309;
+  --btn-edit-hover: #d97706;
+}
+
+[data-theme="daylight"] {
+  --bg-base: #f8fafc;
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-elevated: rgba(241, 245, 249, 0.8);
+  --bg-input: #ffffff;
+  --bg-hover: rgba(226, 232, 240, 0.6);
+  --border-main: #e2e8f0;
+  --border-subtle: rgba(203, 213, 225, 0.5);
+  --border-input: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #1e293b;
+  --text-tertiary: #334155;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+
+  --banner-from: rgba(224, 231, 255, 0.8);
+  --banner-to: rgba(219, 234, 254, 0.8);
+  --banner-border: rgba(165, 180, 252, 0.5);
+  --banner-text-dim: rgba(79, 70, 229, 0.6);
+  --banner-icon-bg: rgba(99, 102, 241, 0.15);
+
+  --progress-track: #e2e8f0;
+  --tooltip-bg: #ffffff;
+  --tooltip-border: #e2e8f0;
+
+  --expense-color: #dc2626;
+  --income-color: #059669;
+
+  --c-expense: #dc2626;
+  --c-income: #059669;
+  --c-accent: #4f46e5;
+  --c-who-me: #2563eb;
+  --c-who-partner: #db2777;
+  --c-who-shared: #7c3aed;
+  --c-tag-personal: #d97706;
+
+  --c-expense-bg: #fef2f2;
+  --c-expense-bg-subtle: #fff5f5;
+  --c-income-bg: #ecfdf5;
+  --c-accent-bg: rgba(99, 102, 241, 0.12);
+  --c-accent-bg-subtle: rgba(99, 102, 241, 0.06);
+  --c-who-me-bg: #eff6ff;
+  --c-who-partner-bg: #fdf2f8;
+  --c-who-shared-bg: #f5f3ff;
+  --c-tag-reimb-bg: #eef2ff;
+  --c-tag-personal-bg: #fffbeb;
+  --c-tag-personal-bg-subtle: #fffde7;
+
+  --c-expense-border: rgba(239, 68, 68, 0.3);
+  --c-income-border: rgba(16, 185, 129, 0.3);
+  --c-accent-border: rgba(99, 102, 241, 0.3);
+  --c-accent-border-strong: rgba(99, 102, 241, 0.5);
+  --c-who-me-border: rgba(59, 130, 246, 0.3);
+  --c-who-partner-border: rgba(236, 72, 153, 0.3);
+  --c-who-shared-border: rgba(139, 92, 246, 0.3);
+  --c-tag-reimb-border: rgba(99, 102, 241, 0.3);
+  --c-tag-personal-border: rgba(245, 158, 11, 0.3);
+
+  --btn-primary: #4f46e5;
+  --btn-primary-hover: #4338ca;
+  --btn-edit: #d97706;
+  --btn-edit-hover: #b45309;
+}
