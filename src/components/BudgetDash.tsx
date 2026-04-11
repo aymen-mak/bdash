@@ -9,7 +9,7 @@ import ExcelJS from 'exceljs'
 
 type Who = 'Me' | 'Partner' | 'Shared'
 type TxType = 'expense' | 'income'
-type ExpenseTag = 'Work' | 'Non-work'
+type ExpenseTag = 'Reimbursable' | 'Personal'
 
 interface Transaction {
   id: string
@@ -27,7 +27,15 @@ interface MonthData {
   transactions: Transaction[]
 }
 
-const EXPENSE_CATS = [
+interface CatDef {
+  name: string
+  emoji: string
+  color: string
+}
+
+const CUSTOM_CAT_COLORS = ['#f43f5e', '#0ea5e9', '#a855f7', '#14b8a6', '#f59e0b', '#64748b', '#e11d48', '#6366f1']
+
+const EXPENSE_CATS: CatDef[] = [
   { name: 'Housing',       emoji: '🏠', color: '#ef4444' },
   { name: 'Transport',     emoji: '🚗', color: '#f97316' },
   { name: 'Groceries',     emoji: '🛒', color: '#eab308' },
@@ -40,7 +48,7 @@ const EXPENSE_CATS = [
   { name: 'Other',         emoji: '📦', color: '#6b7280' },
 ]
 
-const INCOME_CATS = [
+const INCOME_CATS: CatDef[] = [
   { name: 'Salary',       emoji: '💼', color: '#10b981' },
   { name: 'Freelance',    emoji: '💰', color: '#34d399' },
   { name: 'Investment',   emoji: '📈', color: '#059669' },
@@ -50,9 +58,7 @@ const INCOME_CATS = [
 
 const ALL_CATS = [...EXPENSE_CATS, ...INCOME_CATS]
 
-function catMeta(name: string) {
-  return ALL_CATS.find((c) => c.name === name) ?? { emoji: '?', color: '#9ca3af' }
-}
+// catMeta is defined inside the component to include custom categories
 
 function monthKey(year: number, month: number) {
   return `${year}-${String(month + 1).padStart(2, '0')}`
@@ -90,11 +96,18 @@ export default function BudgetDash() {
     amount: '',
     note: '',
     who: 'Shared' as Who,
-    tag: 'Non-work' as ExpenseTag,
+    tag: 'Personal' as ExpenseTag,
     date: today.toISOString().slice(0, 10),
   })
 
   const [editingTxId, setEditingTxId] = useState<string | null>(null)
+
+  // Custom categories
+  const [customExpenseCats, setCustomExpenseCats] = useState<CatDef[]>([])
+  const [customIncomeCats, setCustomIncomeCats] = useState<CatDef[]>([])
+  const [addingCat, setAddingCat] = useState(false)
+  const [newCatName, setNewCatName] = useState('')
+  const [newCatEmoji, setNewCatEmoji] = useState('🏷️')
 
   // Calendar
   const [calOpen, setCalOpen] = useState(false)
@@ -142,6 +155,12 @@ export default function BudgetDash() {
     try {
       const stored = localStorage.getItem('budget-dash')
       if (stored) setData(JSON.parse(stored))
+      const storedCats = localStorage.getItem('budget-dash-custom-cats')
+      if (storedCats) {
+        const parsed = JSON.parse(storedCats)
+        if (parsed.expense) setCustomExpenseCats(parsed.expense)
+        if (parsed.income) setCustomIncomeCats(parsed.income)
+      }
     } catch {}
     setLoaded(true)
   }, [])
@@ -174,8 +193,8 @@ export default function BudgetDash() {
   const balance = monthData.startingAmount + totalIncome - totalExpenses
 
   // Work vs non-work totals
-  const workExpenses = useMemo(() => expenses.filter((t) => t.tag === 'Work').reduce((s, t) => s + t.amount, 0), [expenses])
-  const nonWorkExpenses = useMemo(() => expenses.filter((t) => t.tag !== 'Work').reduce((s, t) => s + t.amount, 0), [expenses])
+  const workExpenses = useMemo(() => expenses.filter((t) => t.tag === 'Reimbursable').reduce((s, t) => s + t.amount, 0), [expenses])
+  const nonWorkExpenses = useMemo(() => expenses.filter((t) => t.tag !== 'Reimbursable').reduce((s, t) => s + t.amount, 0), [expenses])
 
   // Who breakdown
   const byWho = useMemo(() => {
@@ -190,7 +209,7 @@ export default function BudgetDash() {
     return monthData.transactions.filter((t) => {
       if (filterWho !== 'All' && t.who !== filterWho) return false
       if (filterCat !== 'All' && t.category !== filterCat) return false
-      if (filterTag !== 'All' && (t.tag ?? 'Non-work') !== filterTag) return false
+      if (filterTag !== 'All' && (t.tag ?? 'Personal') !== filterTag) return false
       if (q && !t.category.toLowerCase().includes(q) && !t.note.toLowerCase().includes(q) && !t.who.toLowerCase().includes(q)) return false
       return true
     })
@@ -273,7 +292,7 @@ export default function BudgetDash() {
       amount: String(tx.amount),
       note: tx.note,
       who: tx.who,
-      tag: tx.tag ?? 'Non-work',
+      tag: tx.tag ?? 'Personal',
       date: tx.date,
     })
   }
@@ -366,7 +385,7 @@ export default function BudgetDash() {
       if (t.tag) {
         const tagCell = row.getCell('tag')
         tagCell.font = {
-          color: { argb: t.tag === 'Work' ? 'FF6366f1' : 'FFf59e0b' },
+          color: { argb: t.tag === 'Reimbursable' ? 'FF6366f1' : 'FFf59e0b' },
           bold: true,
         }
       }
@@ -408,12 +427,41 @@ export default function BudgetDash() {
     URL.revokeObjectURL(url)
   }
 
-  const cats = form.type === 'expense' ? EXPENSE_CATS : INCOME_CATS
+  // Merged category lists (preset + custom)
+  const allExpenseCats = useMemo(() => [...EXPENSE_CATS, ...customExpenseCats], [customExpenseCats])
+  const allIncomeCats = useMemo(() => [...INCOME_CATS, ...customIncomeCats], [customIncomeCats])
+  const allCats = useMemo(() => [...allExpenseCats, ...allIncomeCats], [allExpenseCats, allIncomeCats])
+
+  function catMeta(name: string) {
+    return allCats.find((c) => c.name === name) ?? ALL_CATS.find((c) => c.name === name) ?? { emoji: '🏷️', color: '#9ca3af' }
+  }
+  const cats = form.type === 'expense' ? allExpenseCats : allIncomeCats
+
+  // Save custom categories
+  useEffect(() => {
+    if (!loaded) return
+    localStorage.setItem('budget-dash-custom-cats', JSON.stringify({ expense: customExpenseCats, income: customIncomeCats }))
+  }, [customExpenseCats, customIncomeCats, loaded])
+
+  function addCustomCategory() {
+    const name = newCatName.trim()
+    if (!name) return
+    const existing = allCats.find((c) => c.name.toLowerCase() === name.toLowerCase())
+    if (existing) return
+    const colorIdx = (customExpenseCats.length + customIncomeCats.length) % CUSTOM_CAT_COLORS.length
+    const cat: CatDef = { name, emoji: newCatEmoji || '🏷️', color: CUSTOM_CAT_COLORS[colorIdx] }
+    if (form.type === 'expense') setCustomExpenseCats((prev) => [...prev, cat])
+    else setCustomIncomeCats((prev) => [...prev, cat])
+    setForm((f) => ({ ...f, category: name }))
+    setNewCatName('')
+    setNewCatEmoji('🏷️')
+    setAddingCat(false)
+  }
 
   // Work/non-work pie data
   const workPieData = [
-    { name: 'Work', value: workExpenses, color: '#6366f1' },
-    { name: 'Non-work', value: nonWorkExpenses, color: '#f59e0b' },
+    { name: 'Reimbursable', value: workExpenses, color: '#6366f1' },
+    { name: 'Personal', value: nonWorkExpenses, color: '#f59e0b' },
   ].filter((d) => d.value > 0)
 
   // Calendar helpers
@@ -665,7 +713,7 @@ export default function BudgetDash() {
                               <span className="text-xs text-slate-500">{tx.who}</span>
                               {tx.tag && (
                                 <span className={`text-[10px] px-1 py-0.5 rounded-full ${
-                                  tx.tag === 'Work'
+                                  tx.tag === 'Reimbursable'
                                     ? 'bg-indigo-900/50 text-indigo-300 border border-indigo-700/50'
                                     : 'bg-amber-900/30 text-amber-300 border border-amber-700/50'
                                 }`}>{tx.tag}</span>
@@ -805,6 +853,35 @@ export default function BudgetDash() {
                 <span className="text-base">{c.emoji}</span> {c.name}
               </button>
             ))}
+            {addingCat ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  maxLength={4}
+                  value={newCatEmoji}
+                  onChange={(e) => setNewCatEmoji(e.target.value)}
+                  className="w-10 px-1 py-2 text-center text-base bg-slate-800/80 border border-slate-700 rounded-lg outline-none focus:border-indigo-500"
+                />
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Name"
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') addCustomCategory(); if (e.key === 'Escape') setAddingCat(false) }}
+                  className="w-28 px-2 py-2 text-sm bg-slate-800/80 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 outline-none focus:border-indigo-500"
+                />
+                <button onClick={addCustomCategory} className="px-2 py-2 bg-indigo-600 text-white rounded-lg text-xs hover:bg-indigo-500 transition-colors">Add</button>
+                <button onClick={() => { setAddingCat(false); setNewCatName(''); setNewCatEmoji('🏷️') }} className="p-2 text-slate-500 hover:text-slate-300 transition-colors"><X size={14} /></button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAddingCat(true)}
+                className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm bg-slate-800/40 text-slate-500 border border-dashed border-slate-700/50 hover:bg-slate-700/40 hover:text-slate-300 transition-all"
+              >
+                <Plus size={14} /> Custom
+              </button>
+            )}
           </div>
         </div>
 
@@ -868,19 +945,19 @@ export default function BudgetDash() {
           <div>
             <label className="text-xs font-medium text-slate-400 block mb-2">Tag</label>
             <div className="flex gap-2">
-              {(['Non-work', 'Work'] as const).map((tag) => (
+              {(['Personal', 'Reimbursable'] as const).map((tag) => (
                 <button
                   key={tag}
                   onClick={() => setForm((f) => ({ ...f, tag }))}
                   className={`flex items-center gap-1.5 flex-1 justify-center py-2.5 rounded-lg text-sm font-semibold transition-all border-2 ${
                     form.tag === tag
-                      ? tag === 'Work'
+                      ? tag === 'Reimbursable'
                         ? 'bg-indigo-500/20 border-indigo-500/60 text-indigo-300'
                         : 'bg-amber-500/20 border-amber-500/60 text-amber-300'
                       : 'bg-slate-800/60 text-slate-400 border-transparent hover:bg-slate-700/60'
                   }`}
                 >
-                  {tag === 'Work' ? <Briefcase size={14} /> : <Coffee size={14} />}
+                  {tag === 'Reimbursable' ? <Briefcase size={14} /> : <Coffee size={14} />}
                   {tag}
                 </button>
               ))}
@@ -970,7 +1047,7 @@ export default function BudgetDash() {
             onChange={(e) => setFilterCat(e.target.value)}
           >
             <option value="All">Category</option>
-            {ALL_CATS.map((c) => (
+            {allCats.map((c) => (
               <option key={c.name} value={c.name}>{c.emoji} {c.name}</option>
             ))}
           </select>
@@ -980,8 +1057,8 @@ export default function BudgetDash() {
             onChange={(e) => setFilterTag(e.target.value as ExpenseTag | 'All')}
           >
             <option value="All">Tag</option>
-            <option value="Work">Work</option>
-            <option value="Non-work">Non-work</option>
+            <option value="Reimbursable">Reimbursable</option>
+            <option value="Personal">Personal</option>
           </select>
         </div>
 
@@ -992,7 +1069,7 @@ export default function BudgetDash() {
           <div className="space-y-1 flex-1 overflow-y-auto max-h-[28rem]">
             {[...filtered].sort((a, b) => b.date.localeCompare(a.date)).map((t) => {
               const meta = catMeta(t.category)
-              const tag = t.tag ?? (t.type === 'expense' ? 'Non-work' : null)
+              const tag = t.tag ?? (t.type === 'expense' ? 'Personal' : null)
               return (
                 <div
                   key={t.id}
@@ -1009,7 +1086,7 @@ export default function BudgetDash() {
                       <span className="text-xs text-slate-500">{t.who}</span>
                       {tag && (
                         <span className={`text-[10px] px-1 py-0.5 rounded-full ${
-                          tag === 'Work'
+                          tag === 'Reimbursable'
                             ? 'bg-indigo-900/50 text-indigo-300 border border-indigo-700/50'
                             : 'bg-amber-900/30 text-amber-300 border border-amber-700/50'
                         }`}>
@@ -1093,7 +1170,7 @@ export default function BudgetDash() {
           </div>
         )}
 
-        {/* Who breakdown + Work/Non-work */}
+        {/* Who breakdown + Reimbursable/Personal */}
         <div className="grid md:grid-cols-3 gap-3">
           {/* By person */}
           <div className="bg-slate-800/40 rounded-lg p-3 border border-slate-700/30">
@@ -1106,15 +1183,15 @@ export default function BudgetDash() {
             ))}
           </div>
 
-          {/* Work vs Non-work */}
+          {/* Reimbursable vs Personal */}
           <div className="bg-slate-800/40 rounded-lg p-3 border border-slate-700/30">
-            <p className="text-xs text-slate-400 mb-2 font-medium">Work vs Non-work</p>
+            <p className="text-xs text-slate-400 mb-2 font-medium">Reimbursable vs Personal</p>
             <div className="flex justify-between text-sm py-0.5">
-              <span className="flex items-center gap-1.5 text-indigo-300"><Briefcase size={12} /> Work</span>
+              <span className="flex items-center gap-1.5 text-indigo-300"><Briefcase size={12} /> Reimbursable</span>
               <span className="text-slate-200 font-medium">{formatCurrency(workExpenses)}</span>
             </div>
             <div className="flex justify-between text-sm py-0.5">
-              <span className="flex items-center gap-1.5 text-amber-300"><Coffee size={12} /> Non-work</span>
+              <span className="flex items-center gap-1.5 text-amber-300"><Coffee size={12} /> Personal</span>
               <span className="text-slate-200 font-medium">{formatCurrency(nonWorkExpenses)}</span>
             </div>
             {totalExpenses > 0 && (
@@ -1205,10 +1282,10 @@ export default function BudgetDash() {
           </ResponsiveContainer>
         </div>
 
-        {/* Work/Non-work pie */}
+        {/* Reimbursable/Personal pie */}
         {workPieData.length > 0 && (
           <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4">
-            <h2 className="font-semibold text-slate-200 mb-3">Work vs Non-work Expenses</h2>
+            <h2 className="font-semibold text-slate-200 mb-3">Reimbursable vs Personal Expenses</h2>
             <div className="flex items-center gap-4">
               <ResponsiveContainer width={140} height={140}>
                 <PieChart>
