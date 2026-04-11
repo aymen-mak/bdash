@@ -109,6 +109,10 @@ export default function BudgetDash() {
   const [newCatName, setNewCatName] = useState('')
   const [newCatEmoji, setNewCatEmoji] = useState('🏷️')
 
+  // Who names (editable)
+  const [whoNames, setWhoNames] = useState<Record<Who, string>>({ Me: 'Me', Partner: 'Partner', Shared: 'Both' })
+  const [editingWhoNames, setEditingWhoNames] = useState(false)
+
   // Calendar
   const [calOpen, setCalOpen] = useState(false)
   const [calView, setCalView] = useState<'month' | 'week' | 'day'>('month')
@@ -161,6 +165,8 @@ export default function BudgetDash() {
         if (parsed.expense) setCustomExpenseCats(parsed.expense)
         if (parsed.income) setCustomIncomeCats(parsed.income)
       }
+      const storedNames = localStorage.getItem('budget-dash-who-names')
+      if (storedNames) setWhoNames(JSON.parse(storedNames))
     } catch {}
     setLoaded(true)
   }, [])
@@ -354,7 +360,7 @@ export default function BudgetDash() {
         type: t.type.charAt(0).toUpperCase() + t.type.slice(1),
         category: catMeta(t.category).emoji + ' ' + t.category,
         amount: t.amount,
-        who: t.who,
+        who: whoNames[t.who as Who],
         tag: t.tag ?? '',
         note: t.note,
       })
@@ -442,6 +448,12 @@ export default function BudgetDash() {
     if (!loaded) return
     localStorage.setItem('budget-dash-custom-cats', JSON.stringify({ expense: customExpenseCats, income: customIncomeCats }))
   }, [customExpenseCats, customIncomeCats, loaded])
+
+  // Save who names
+  useEffect(() => {
+    if (!loaded) return
+    localStorage.setItem('budget-dash-who-names', JSON.stringify(whoNames))
+  }, [whoNames, loaded])
 
   function addCustomCategory() {
     const name = newCatName.trim()
@@ -710,7 +722,7 @@ export default function BudgetDash() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-slate-200">{tx.category}</span>
-                              <span className="text-xs text-slate-500">{tx.who}</span>
+                              <span className="text-xs text-slate-500">{whoNames[tx.who as Who]}</span>
                               {tx.tag && (
                                 <span className={`text-[10px] px-1 py-0.5 rounded-full ${
                                   tx.tag === 'Reimbursable'
@@ -913,57 +925,90 @@ export default function BudgetDash() {
           </div>
         </div>
 
-        {/* Who pills */}
-        <div>
-          <label className="text-xs font-medium text-slate-400 block mb-2">Who</label>
-          <div className="flex gap-2">
-            {(['Me', 'Partner', 'Shared'] as const).map((who) => {
-              const whoColors: Record<Who, { active: string; text: string }> = {
-                Me: { active: 'bg-blue-500/20 border-blue-500/60 text-blue-300', text: 'text-blue-300' },
-                Partner: { active: 'bg-pink-500/20 border-pink-500/60 text-pink-300', text: 'text-pink-300' },
-                Shared: { active: 'bg-violet-500/20 border-violet-500/60 text-violet-300', text: 'text-violet-300' },
-              }
-              return (
-                <button
-                  key={who}
-                  onClick={() => setForm((f) => ({ ...f, who }))}
-                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all border-2 ${
-                    form.who === who
-                      ? whoColors[who].active
-                      : 'bg-slate-800/60 text-slate-400 border-transparent hover:bg-slate-700/60'
-                  }`}
-                >
-                  {who}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Tag pills (expense only) */}
-        {form.type === 'expense' && (
+        {/* Who + Tag row */}
+        <div className={`grid grid-cols-1 ${form.type === 'expense' ? 'md:grid-cols-2' : ''} gap-4`}>
+          {/* Who segmented toggle */}
           <div>
-            <label className="text-xs font-medium text-slate-400 block mb-2">Tag</label>
-            <div className="flex gap-2">
-              {(['Personal', 'Reimbursable'] as const).map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => setForm((f) => ({ ...f, tag }))}
-                  className={`flex items-center gap-1.5 flex-1 justify-center py-2.5 rounded-lg text-sm font-semibold transition-all border-2 ${
-                    form.tag === tag
-                      ? tag === 'Reimbursable'
-                        ? 'bg-indigo-500/20 border-indigo-500/60 text-indigo-300'
-                        : 'bg-amber-500/20 border-amber-500/60 text-amber-300'
-                      : 'bg-slate-800/60 text-slate-400 border-transparent hover:bg-slate-700/60'
-                  }`}
-                >
-                  {tag === 'Reimbursable' ? <Briefcase size={14} /> : <Coffee size={14} />}
-                  {tag}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 mb-2">
+              <label className="text-xs font-medium text-slate-400">Who</label>
+              <button
+                onClick={() => setEditingWhoNames((v) => !v)}
+                className="p-0.5 text-slate-500 hover:text-indigo-400 transition-colors"
+                title="Rename"
+              >
+                <Pencil size={10} />
+              </button>
             </div>
+            {editingWhoNames ? (
+              <div className="flex gap-1.5 items-center">
+                {(['Me', 'Partner', 'Shared'] as const).map((who) => (
+                  <input
+                    key={who}
+                    type="text"
+                    maxLength={12}
+                    className="w-full px-2 py-1.5 text-sm text-center bg-slate-800/80 border border-slate-700 rounded-lg text-slate-200 outline-none focus:border-indigo-500"
+                    value={whoNames[who]}
+                    onChange={(e) => setWhoNames((prev) => ({ ...prev, [who]: e.target.value || who }))}
+                  />
+                ))}
+                <button
+                  onClick={() => setEditingWhoNames(false)}
+                  className="p-1.5 text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <div className="inline-flex rounded-lg bg-slate-800/80 border border-slate-700/50 p-0.5">
+                {(['Me', 'Partner', 'Shared'] as const).map((who) => {
+                  const colors: Record<Who, string> = {
+                    Me: 'bg-blue-500/20 text-blue-300 border border-blue-500/40',
+                    Partner: 'bg-pink-500/20 text-pink-300 border border-pink-500/40',
+                    Shared: 'bg-violet-500/20 text-violet-300 border border-violet-500/40',
+                  }
+                  return (
+                    <button
+                      key={who}
+                      onClick={() => setForm((f) => ({ ...f, who }))}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                        form.who === who
+                          ? colors[who] + ' shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                      }`}
+                    >
+                      {whoNames[who]}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Tag segmented toggle (expense only) */}
+          {form.type === 'expense' && (
+            <div>
+              <label className="text-xs font-medium text-slate-400 block mb-2">Tag</label>
+              <div className="inline-flex rounded-lg bg-slate-800/80 border border-slate-700/50 p-0.5">
+                {(['Personal', 'Reimbursable'] as const).map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => setForm((f) => ({ ...f, tag }))}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                      form.tag === tag
+                        ? tag === 'Reimbursable'
+                          ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm'
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                    }`}
+                  >
+                    {tag === 'Reimbursable' ? <Briefcase size={13} /> : <Coffee size={13} />}
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Note + Save */}
         <div className="flex gap-3">
@@ -1037,9 +1082,9 @@ export default function BudgetDash() {
             onChange={(e) => setFilterWho(e.target.value as Who | 'All')}
           >
             <option value="All">Who</option>
-            <option>Me</option>
-            <option>Partner</option>
-            <option>Shared</option>
+            <option value="Me">{whoNames.Me}</option>
+            <option value="Partner">{whoNames.Partner}</option>
+            <option value="Shared">{whoNames.Shared}</option>
           </select>
           <select
             className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-slate-200"
@@ -1083,7 +1128,7 @@ export default function BudgetDash() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-medium text-slate-200 truncate">{t.category}</span>
-                      <span className="text-xs text-slate-500">{t.who}</span>
+                      <span className="text-xs text-slate-500">{whoNames[t.who as Who]}</span>
                       {tag && (
                         <span className={`text-[10px] px-1 py-0.5 rounded-full ${
                           tag === 'Reimbursable'
@@ -1177,7 +1222,7 @@ export default function BudgetDash() {
             <p className="text-xs text-slate-400 mb-2 font-medium">Expenses by Person</p>
             {(['Me', 'Partner', 'Shared'] as const).map((who) => (
               <div key={who} className="flex justify-between text-sm py-0.5">
-                <span className="text-slate-300">{who}</span>
+                <span className="text-slate-300">{whoNames[who]}</span>
                 <span className="text-slate-200 font-medium">{formatCurrency(byWho[who] ?? 0)}</span>
               </div>
             ))}
