@@ -76,6 +76,7 @@ export default function BudgetDash() {
   const [year, setYear]   = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
   const [data, setData]   = useState<Record<string, MonthData>>({})
+  const [loaded, setLoaded] = useState(false)
   const [search, setSearch]     = useState('')
   const [filterWho, setFilterWho] = useState<Who | 'All'>('All')
   const [filterCat, setFilterCat] = useState('All')
@@ -142,11 +143,13 @@ export default function BudgetDash() {
       const stored = localStorage.getItem('budget-dash')
       if (stored) setData(JSON.parse(stored))
     } catch {}
+    setLoaded(true)
   }, [])
 
   useEffect(() => {
+    if (!loaded) return
     localStorage.setItem('budget-dash', JSON.stringify(data))
-  }, [data])
+  }, [data, loaded])
 
   const key = monthKey(year, month)
   const monthData: MonthData = data[key] ?? { startingAmount: 0, transactions: [] }
