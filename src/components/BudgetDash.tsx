@@ -78,6 +78,10 @@ function formatCurrency(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 }
 
+function formatEur(n: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EUR' }).format(n)
+}
+
 export default function BudgetDash() {
   const today = new Date()
   const [year, setYear]   = useState(today.getFullYear())
@@ -114,6 +118,10 @@ export default function BudgetDash() {
   // Who names (editable)
   const [whoNames, setWhoNames] = useState<Record<Who, string>>({ Me: 'Me', Partner: 'Partner', Shared: 'Both' })
   const [editingWhoNames, setEditingWhoNames] = useState(false)
+
+  // EUR exchange rate
+  const [eurRate, setEurRate] = useState<number | null>(null)
+  const toEur = useCallback((usd: number) => eurRate != null ? usd * eurRate : null, [eurRate])
 
   // Calendar
   const [calOpen, setCalOpen] = useState(false)
@@ -173,6 +181,16 @@ export default function BudgetDash() {
       if (storedTheme) setTheme(JSON.parse(storedTheme))
     } catch {}
     setLoaded(true)
+  }, [])
+
+  // Fetch USD→EUR exchange rate (ECB data via Frankfurter)
+  useEffect(() => {
+    let stale = false
+    fetch('https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR')
+      .then((r) => r.json())
+      .then((d) => { if (!stale && d.rates?.EUR) setEurRate(d.rates.EUR) })
+      .catch(() => {})
+    return () => { stale = true }
   }, [])
 
   useEffect(() => {
@@ -778,11 +796,16 @@ export default function BudgetDash() {
                             </div>
                             {tx.note && <p className="text-xs text-[var(--text-faint)] truncate">{tx.note}</p>}
                           </div>
-                          <div
-                            className="text-sm font-semibold"
-                            style={{ color: tx.type === 'expense' ? 'var(--expense-color)' : 'var(--income-color)' }}
-                          >
-                            {tx.type === 'expense' ? '-' : '+'}{formatCurrency(tx.amount)}
+                          <div className="text-right">
+                            <div
+                              className="text-sm font-semibold"
+                              style={{ color: tx.type === 'expense' ? 'var(--expense-color)' : 'var(--income-color)' }}
+                            >
+                              {tx.type === 'expense' ? '-' : '+'}{formatCurrency(tx.amount)}
+                            </div>
+                            {toEur(tx.amount) != null && (
+                              <div className="text-[10px] text-[var(--text-faint)]">{tx.type === 'expense' ? '-' : '+'}{formatEur(toEur(tx.amount)!)}</div>
+                            )}
                           </div>
                           <button
                             onClick={() => { startEdit(tx); setCalOpen(false) }}
@@ -839,6 +862,9 @@ export default function BudgetDash() {
               >
                 {monthData.startingAmount > 0 ? formatCurrency(monthData.startingAmount) : 'Set amount →'}
               </button>
+              {monthData.startingAmount > 0 && toEur(monthData.startingAmount) != null && (
+                <span className="text-sm text-[var(--text-faint)]">({formatEur(toEur(monthData.startingAmount)!)})</span>
+              )}
               {lastAction === 'starting' && (
                 <button
                   onClick={handleUndo}
@@ -1193,6 +1219,9 @@ export default function BudgetDash() {
                     >
                       {t.type === 'expense' ? '-' : '+'}{formatCurrency(t.amount)}
                     </div>
+                    {toEur(t.amount) != null && (
+                      <div className="text-[10px] text-[var(--text-faint)]">{t.type === 'expense' ? '-' : '+'}{formatEur(toEur(t.amount)!)}</div>
+                    )}
                     <div className="text-[10px] text-[var(--text-faint)]">{t.date}</div>
                   </div>
                   <button
@@ -1225,18 +1254,22 @@ export default function BudgetDash() {
           <div className="bg-[var(--bg-elevated)] rounded-lg p-3 border border-[var(--border-subtle)]">
             <p className="text-xs text-[var(--text-muted)]">Starting</p>
             <p className="text-lg font-bold text-[var(--text-secondary)]">{formatCurrency(monthData.startingAmount)}</p>
+            {toEur(monthData.startingAmount) != null && <p className="text-xs text-[var(--text-faint)]">{formatEur(toEur(monthData.startingAmount)!)}</p>}
           </div>
           <div className="bg-[var(--bg-elevated)] rounded-lg p-3 border border-[var(--border-subtle)]">
             <p className="text-xs text-[var(--c-income)]">Income</p>
             <p className="text-lg font-bold text-[var(--c-income)]">{formatCurrency(totalIncome)}</p>
+            {toEur(totalIncome) != null && <p className="text-xs text-[var(--text-faint)]">{formatEur(toEur(totalIncome)!)}</p>}
           </div>
           <div className="bg-[var(--bg-elevated)] rounded-lg p-3 border border-[var(--border-subtle)]">
             <p className="text-xs text-[var(--c-expense)]">Expenses</p>
             <p className="text-lg font-bold text-[var(--c-expense)]">{formatCurrency(totalExpenses)}</p>
+            {toEur(totalExpenses) != null && <p className="text-xs text-[var(--text-faint)]">{formatEur(toEur(totalExpenses)!)}</p>}
           </div>
           <div className="bg-[var(--bg-elevated)] rounded-lg p-3 border border-[var(--border-subtle)]">
             <p className="text-xs text-[var(--c-who-me)]">Balance</p>
             <p className={`text-lg font-bold ${balance >= 0 ? 'text-[var(--c-who-me)]' : 'text-[var(--c-expense)]'}`}>{formatCurrency(balance)}</p>
+            {toEur(balance) != null && <p className="text-xs text-[var(--text-faint)]">{formatEur(toEur(balance)!)}</p>}
           </div>
         </div>
 
@@ -1254,8 +1287,8 @@ export default function BudgetDash() {
               />
             </div>
             <div className="flex justify-between text-xs text-[var(--text-faint)]">
-              <span>{formatCurrency(totalExpenses)} spent</span>
-              <span>{formatCurrency(budget)} limit</span>
+              <span>{formatCurrency(totalExpenses)} spent{toEur(totalExpenses) != null && ` (${formatEur(toEur(totalExpenses)!)})`}</span>
+              <span>{formatCurrency(budget)} limit{toEur(budget) != null && ` (${formatEur(toEur(budget)!)})`}</span>
             </div>
           </div>
         )}
@@ -1268,7 +1301,10 @@ export default function BudgetDash() {
             {(['Me', 'Partner', 'Shared'] as const).map((who) => (
               <div key={who} className="flex justify-between text-sm py-0.5">
                 <span className="text-[var(--text-tertiary)]">{whoNames[who]}</span>
-                <span className="text-[var(--text-secondary)] font-medium">{formatCurrency(byWho[who] ?? 0)}</span>
+                <div className="text-right">
+                  <span className="text-[var(--text-secondary)] font-medium">{formatCurrency(byWho[who] ?? 0)}</span>
+                  {toEur(byWho[who] ?? 0) != null && <span className="text-[10px] text-[var(--text-faint)] ml-1">({formatEur(toEur(byWho[who] ?? 0)!)})</span>}
+                </div>
               </div>
             ))}
           </div>
@@ -1278,11 +1314,17 @@ export default function BudgetDash() {
             <p className="text-xs text-[var(--text-muted)] mb-2 font-medium">Reimbursable vs Personal</p>
             <div className="flex justify-between text-sm py-0.5">
               <span className="flex items-center gap-1.5 text-[var(--c-accent)]"><Briefcase size={12} /> Reimbursable</span>
-              <span className="text-[var(--text-secondary)] font-medium">{formatCurrency(workExpenses)}</span>
+              <div className="text-right">
+                <span className="text-[var(--text-secondary)] font-medium">{formatCurrency(workExpenses)}</span>
+                {toEur(workExpenses) != null && <span className="text-[10px] text-[var(--text-faint)] ml-1">({formatEur(toEur(workExpenses)!)})</span>}
+              </div>
             </div>
             <div className="flex justify-between text-sm py-0.5">
               <span className="flex items-center gap-1.5 text-[var(--c-tag-personal)]"><Coffee size={12} /> Personal</span>
-              <span className="text-[var(--text-secondary)] font-medium">{formatCurrency(nonWorkExpenses)}</span>
+              <div className="text-right">
+                <span className="text-[var(--text-secondary)] font-medium">{formatCurrency(nonWorkExpenses)}</span>
+                {toEur(nonWorkExpenses) != null && <span className="text-[10px] text-[var(--text-faint)] ml-1">({formatEur(toEur(nonWorkExpenses)!)})</span>}
+              </div>
             </div>
             {totalExpenses > 0 && (
               <div className="mt-2 h-2 bg-[var(--progress-track)] rounded-full overflow-hidden flex">
@@ -1334,7 +1376,7 @@ export default function BudgetDash() {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(v) => formatCurrency(Number(v))}
+                    formatter={(v) => { const n = Number(v); const eur = toEur(n); return eur != null ? `${formatCurrency(n)} (${formatEur(eur)})` : formatCurrency(n) }}
                     contentStyle={tooltipStyle}
                   />
                 </PieChart>
@@ -1347,6 +1389,7 @@ export default function BudgetDash() {
                       <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: meta.color }} />
                       <span className="flex-1 text-[var(--text-muted)] truncate">{meta.emoji} {d.name}</span>
                       <span className="font-medium text-[var(--text-secondary)]">{formatCurrency(d.value)}</span>
+                      {toEur(d.value) != null && <span className="text-[10px] text-[var(--text-faint)]">({formatEur(toEur(d.value)!)})</span>}
                     </div>
                   )
                 })}
@@ -1363,7 +1406,7 @@ export default function BudgetDash() {
               <XAxis dataKey="day" tick={{ fontSize: 10, fill: chartColors.axis }} interval={4} />
               <YAxis tick={{ fontSize: 10, fill: chartColors.axis }} />
               <Tooltip
-                formatter={(v) => formatCurrency(Number(v))}
+                formatter={(v) => { const n = Number(v); const eur = toEur(n); return eur != null ? `${formatCurrency(n)} (${formatEur(eur)})` : formatCurrency(n) }}
                 contentStyle={tooltipStyle}
               />
               <Bar dataKey="expense" fill="#ef4444" name="Expense" radius={[2,2,0,0]} />
@@ -1385,7 +1428,7 @@ export default function BudgetDash() {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(v) => formatCurrency(Number(v))}
+                    formatter={(v) => { const n = Number(v); const eur = toEur(n); return eur != null ? `${formatCurrency(n)} (${formatEur(eur)})` : formatCurrency(n) }}
                     contentStyle={tooltipStyle}
                   />
                 </PieChart>
