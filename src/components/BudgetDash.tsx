@@ -368,11 +368,13 @@ export default function BudgetDash() {
     const ws = wb.addWorksheet(MONTH_NAMES[month] + ' ' + year)
 
     // Column definitions
+    const hasEur = eurRate != null
     ws.columns = [
       { header: 'Date',     key: 'date',     width: 14 },
       { header: 'Type',     key: 'type',     width: 10 },
       { header: 'Category', key: 'category', width: 18 },
-      { header: 'Amount',   key: 'amount',   width: 14 },
+      { header: 'Amount (USD)', key: 'amount', width: 14 },
+      ...(hasEur ? [{ header: 'Amount (EUR)', key: 'amountEur', width: 14 }] : []),
       { header: 'Who',      key: 'who',      width: 12 },
       { header: 'Tag',      key: 'tag',      width: 12 },
       { header: 'Note',     key: 'note',     width: 30 },
@@ -392,6 +394,7 @@ export default function BudgetDash() {
         type: t.type.charAt(0).toUpperCase() + t.type.slice(1),
         category: catMeta(t.category).emoji + ' ' + t.category,
         amount: t.amount,
+        ...(hasEur ? { amountEur: +(t.amount * eurRate!).toFixed(2) } : {}),
         who: whoNames[t.who as Who],
         tag: t.tag ?? '',
         note: t.note,
@@ -419,6 +422,15 @@ export default function BudgetDash() {
         color: { argb: t.type === 'expense' ? 'FFef4444' : 'FF22c55e' },
       }
 
+      // EUR amount cell
+      if (hasEur) {
+        const eurCell = row.getCell('amountEur')
+        eurCell.numFmt = '€#,##0.00'
+        eurCell.font = {
+          color: { argb: t.type === 'expense' ? 'FFef4444' : 'FF22c55e' },
+        }
+      }
+
       // Tag cell coloring
       if (t.tag) {
         const tagCell = row.getCell('tag')
@@ -444,15 +456,27 @@ export default function BudgetDash() {
       ['Total Expenses', totalExpenses],
       ['Balance', balance],
     ]
+    const colors = ['FF64748b', 'FF22c55e', 'FFef4444', (balance >= 0 ? 'FF3b82f6' : 'FFef4444')]
     summaryItems.forEach(([label, value], i) => {
       const row = ws.getRow(summaryStart + i)
       row.getCell(1).value = label as string
       row.getCell(1).font = { bold: true, color: { argb: 'FF334155' } }
       row.getCell(2).value = value as number
       row.getCell(2).numFmt = '$#,##0.00'
-      const colors = ['FF64748b', 'FF22c55e', 'FFef4444', (balance >= 0 ? 'FF3b82f6' : 'FFef4444')]
       row.getCell(2).font = { bold: true, color: { argb: colors[i] } }
+      if (hasEur) {
+        row.getCell(3).value = +((value as number) * eurRate!).toFixed(2)
+        row.getCell(3).numFmt = '€#,##0.00'
+        row.getCell(3).font = { color: { argb: colors[i] } }
+      }
     })
+
+    // Exchange rate note
+    if (hasEur) {
+      const noteRow = ws.getRow(summaryStart + summaryItems.length + 1)
+      noteRow.getCell(1).value = `EUR rate: 1 USD = ${eurRate!.toFixed(4)} EUR (ECB)`
+      noteRow.getCell(1).font = { italic: true, color: { argb: 'FF94a3b8' } }
+    }
 
     // Generate and download
     const buffer = await wb.xlsx.writeBuffer()
